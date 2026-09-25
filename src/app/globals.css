@@ -55,38 +55,39 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --radius: 0.75rem;
+  /* 深夜书桌 + 牛皮纸日记本：暖羊皮纸底 + 墨色文字 + 琥珀点缀 */
+  --background: oklch(0.963 0.012 85);
+  --foreground: oklch(0.30 0.035 55);
+  --card: oklch(0.992 0.006 88);
+  --card-foreground: oklch(0.30 0.035 55);
+  --popover: oklch(0.992 0.006 88);
+  --popover-foreground: oklch(0.30 0.035 55);
+  --primary: oklch(0.62 0.14 55);
+  --primary-foreground: oklch(0.98 0.02 60);
+  --secondary: oklch(0.945 0.02 80);
+  --secondary-foreground: oklch(0.35 0.04 60);
+  --muted: oklch(0.942 0.015 82);
+  --muted-foreground: oklch(0.55 0.03 60);
+  --accent: oklch(0.55 0.09 245);
+  --accent-foreground: oklch(0.98 0.02 240);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
+  --border: oklch(0.88 0.02 82);
+  --input: oklch(0.88 0.02 82);
+  --ring: oklch(0.62 0.14 55);
+  --chart-1: oklch(0.62 0.14 55);
+  --chart-2: oklch(0.55 0.09 245);
+  --chart-3: oklch(0.65 0.16 155);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: oklch(0.99 0.005 88);
+  --sidebar-foreground: oklch(0.30 0.035 55);
+  --sidebar-primary: oklch(0.62 0.14 55);
+  --sidebar-primary-foreground: oklch(0.98 0.02 60);
+  --sidebar-accent: oklch(0.94 0.02 80);
+  --sidebar-accent-foreground: oklch(0.35 0.04 60);
+  --sidebar-border: oklch(0.89 0.02 82);
+  --sidebar-ring: oklch(0.62 0.14 55);
 }
 
 .dark {
@@ -134,4 +135,74 @@
 
 body {
   @apply font-sans;
+}
+
+/* ---------- 日记纸质感 ---------- */
+.diary-paper {
+  background-color: var(--color-card);
+  background-image: radial-gradient(
+      ellipse at top left,
+      oklch(0.92 0.02 80 / 0.5),
+      transparent 60%
+    ),
+    radial-gradient(ellipse at bottom right, oklch(0.9 0.02 65 / 0.4), transparent 55%);
+}
+
+.prose-diary {
+  font-family: var(--font-serif);
+  line-height: 1.9;
+  color: oklch(0.34 0.03 55);
+  font-size: 1.0625rem;
+  word-break: break-word;
+}
+.prose-diary p {
+  margin-top: 0.75em;
+  margin-bottom: 0.75em;
+}
+.prose-diary h1,
+.prose-diary h2,
+.prose-diary h3 {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  line-height: 1.4;
+  margin-top: 1.1em;
+  margin-bottom: 0.5em;
+  color: var(--color-foreground);
+}
+.prose-diary a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.prose-diary blockquote {
+  border-left: 3px solid var(--color-ring);
+  padding-left: 1rem;
+  color: var(--color-muted-foreground);
+  font-style: italic;
+  margin: 1em 0;
+}
+.prose-diary ul {
+  list-style: disc;
+  padding-left: 1.4rem;
+  margin: 0.75em 0;
+}
+.prose-diary ol {
+  list-style: decimal;
+  padding-left: 1.4rem;
+  margin: 0.75em 0;
+}
+
+/* 柔和入场动效 */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-up {
+  animation: fadeUp 0.5s ease both;
 }
