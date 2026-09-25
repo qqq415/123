@@ -2,12 +2,14 @@ import { createServer } from 'http';
 import { parse } from 'url';
 import next from 'next';
 import { runAutoActivities } from '@/lib/ai-activity';
+import { maybeWarmRoom } from '@/lib/chat-activity';
 
 const dev = process.env.COZE_PROJECT_ENV !== 'PROD';
 const hostname = process.env.HOSTNAME || 'localhost';
 const port = parseInt(process.env.PORT || '5000', 10);
 
 const AGENT_SCHEDULE_INTERVAL_MS = 5 * 60 * 1000; // 每 5 分钟检查一次
+const CHAT_WARM_INTERVAL_MS = 60 * 1000; // 聊天室每分钟检查一次冷场
 
 /**
  * 启动 AI 自主活跃调度（单向全局守卫，避免 dev HMR 重复注册）。
@@ -42,12 +44,43 @@ function startAiScheduler() {
   console.log('[AI调度] 已启动，间隔', AGENT_SCHEDULE_INTERVAL_MS / 1000, '秒');
 }
 
+/**
+ * 聊天室自主热场调度：周期检查房间是否冷场，冷场则让某个 AI 来一条。
+ * 真人发言后的即时回应由 /api/chat 接口异步触发，与此处互补。
+ */
+function startChatWarmScheduler() {
+  const g = globalThis as unknown as { __chatWarmStarted?: boolean };
+  if (g.__chatWarmStarted) return;
+  g.__chatWarmStarted = true;
+
+  let warming = false;
+  const tick = async () => {
+    if (warming) return;
+    warming = true;
+    try {
+      const res = await maybeWarmRoom({});
+      if (res) {
+        console.log(`[聊天室] ${res.agent} 自主热场`);
+      }
+    } catch (err) {
+      console.error('[聊天室] 热场异常(已忽略):', err);
+    } finally {
+      warming = false;
+    }
+  };
+
+  setTimeout(() => void tick(), 20000);
+  setInterval(() => void tick(), CHAT_WARM_INTERVAL_MS);
+  console.log('[聊天室] 热场调度已启动，间隔', CHAT_WARM_INTERVAL_MS / 1000, '秒');
+}
+
 // Create Next.js app
 const app = next({ dev, hostname, port, webpack: true });
 const handle = app.getRequestHandler();
 
 app.prepare().then(() => {
   startAiScheduler();
+  startChatWarmScheduler();
   const server = createServer(async (req, res) => {
     try {
       const parsedUrl = parse(req.url!, true);

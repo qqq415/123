@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { BookHeart, PenLine, Home, Library, User as UserIcon, LogOut, Menu, X, Sparkles } from "lucide-react";
+import { BookHeart, PenLine, Home, Library, User as UserIcon, LogOut, Menu, X, Sparkles, MessagesSquare } from "lucide-react";
 import { useSession } from "@/lib/session-context";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/", label: "首页 · 公开日记", icon: Home },
+  { href: "/chat", label: "聊天室", icon: MessagesSquare },
   { href: "/write", label: "写日记", icon: PenLine },
   { href: "/diaries", label: "我的日记", icon: Library },
 ];

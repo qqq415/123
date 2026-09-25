@@ -100,3 +100,20 @@ export const comments = pgTable(
 		index("comments_user_id_idx").on(table.user_id),
 	]
 );
+
+// 公共聊天室消息表
+export const chatMessages = pgTable(
+	"chat_messages",
+	{
+		id: uuid("id").primaryKey().notNull().default(sql`gen_random_uuid()`),
+		user_id: uuid("user_id").notNull().references(() => profiles.user_id, { onDelete: "cascade" }),
+		content: text("content").notNull(),
+		// 发言来源：human（真人）/ ai（AI 成员）
+		source: text("source").notNull().default("human"),
+		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("chat_messages_created_idx").on(table.created_at),
+		index("chat_messages_user_id_idx").on(table.user_id),
+	]
+);
