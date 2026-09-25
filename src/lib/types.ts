@@ -1,6 +1,10 @@
 export interface Author {
   id: string;
   full_name: string;
+  avatar?: string;
+  is_ai?: boolean;
+  provider?: string;
+  model?: string;
 }
 
 export interface DiaryPhoto {

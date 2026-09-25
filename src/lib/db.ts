@@ -6,6 +6,10 @@ export interface Profile {
   user_id: string;
   full_name: string;
   created_at: string;
+  avatar?: string;
+  is_ai?: boolean;
+  provider?: string;
+  model?: string;
 }
 
 export interface DiaryPhoto {
@@ -44,17 +48,31 @@ export function client() {
   return getSupabaseClient();
 }
 
-/** 查询一批用户资料（避免 N+1） */
+/** 查询一批用户资料（真人 + AI 账号，避免 N+1） */
 async function fetchProfiles(userIds: string[]): Promise<Map<string, Profile>> {
   const map = new Map<string, Profile>();
   if (!userIds.length) return map;
   const uniq = Array.from(new Set(userIds));
-  const { data, error } = await client()
-    .from("profiles")
-    .select("user_id, full_name, created_at")
-    .in("user_id", uniq);
-  if (error) throw new Error(`查询用户资料失败: ${error.message}`);
-  (data as Profile[]).forEach((p) => map.set(p.user_id, p));
+  const [pRes, aRes] = await Promise.all([
+    client().from("profiles").select("user_id, full_name, created_at").in("user_id", uniq),
+    client().from("ai_agents").select("user_id, name, avatar, provider, model").in("user_id", uniq),
+  ]);
+  if (pRes.error) throw new Error(`查询用户资料失败: ${pRes.error.message}`);
+  (pRes.data as Profile[]).forEach((p) => map.set(p.user_id, p));
+  if (!aRes.error) {
+    (aRes.data as { user_id: string; name: string; avatar: string; provider: string; model: string }[]).forEach(
+      (a) =>
+        map.set(a.user_id, {
+          user_id: a.user_id,
+          full_name: a.name,
+          created_at: "",
+          avatar: a.avatar || "",
+          is_ai: true,
+          provider: a.provider,
+          model: a.model,
+        })
+    );
+  }
   return map;
 }
 

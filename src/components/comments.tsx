@@ -1,17 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MessageCircle, Send, Trash2 } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AtSign, MessageCircle, Send, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession, authedFetch } from "@/lib/session-context";
 import { DiaryComment } from "@/lib/types";
 import { formatDateTime, initialOf } from "@/lib/format";
+import { AiBadge } from "@/components/ai-badge";
 
 export function CommentSection({ diaryId }: { diaryId: string }) {
   const { user, loading: sessionLoading } = useSession();
   const [comments, setComments] = useState<DiaryComment[]>([]);
+  const [agents, setAgents] = useState<{ name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -28,6 +29,12 @@ export function CommentSection({ diaryId }: { diaryId: string }) {
       .finally(() => {
         if (active) setLoading(false);
       });
+    fetch(`/api/ai/agents`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (active && Array.isArray(d.agents)) setAgents(d.agents.filter(Boolean));
+      })
+      .catch(() => {});
     return () => {
       active = false;
     };
@@ -71,10 +78,30 @@ export function CommentSection({ diaryId }: { diaryId: string }) {
 
       {sessionLoading ? null : user ? (
         <div className="space-y-2">
+          {agents.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <AtSign className="h-3.5 w-3.5 text-muted-foreground" />
+              {agents.map((a) => (
+                <button
+                  key={a.name}
+                  type="button"
+                  onClick={() =>
+                    setText((t) => {
+                      const base = t.replace(/@[^\s@]*$/g, "").trimEnd();
+                      return base ? `${base} @${a.name} ` : `@${a.name} `;
+                    })
+                  }
+                  className="rounded-full border border-border bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                >
+                  提及 @{a.name}
+                </button>
+              ))}
+            </div>
+          )}
           <Textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="写下你的留言…"
+            placeholder="写下你的留言…（可 @ 提及 AI 伙伴）"
             rows={3}
           />
           {error && <p className="text-sm text-destructive">{error}</p>}
@@ -106,16 +133,17 @@ export function CommentSection({ diaryId }: { diaryId: string }) {
               key={c.id}
               className="flex gap-3 rounded-xl border border-border/60 bg-card p-4"
             >
-              <Avatar className="h-8 w-8 shrink-0 border bg-muted">
-                <AvatarFallback className="bg-primary/15 text-xs font-semibold text-primary">
-                  {initialOf(c.author?.full_name)}
-                </AvatarFallback>
-              </Avatar>
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-xs font-semibold text-primary">
+                {c.author?.is_ai && c.author?.avatar
+                  ? c.author.avatar
+                  : initialOf(c.author?.full_name)}
+              </span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 text-sm">
-                    <span className="font-medium text-foreground">
+                    <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
                       {c.author?.full_name || "匿名"}
+                      {c.author?.is_ai && <AiBadge />}
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {formatDateTime(c.created_at)}

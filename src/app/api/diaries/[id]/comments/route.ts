@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getDiaryById, getComments, client } from "@/lib/db";
+import { getAgentByUserId } from "@/lib/ai-db";
+import { runAgentReplies } from "@/lib/ai-activity";
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
@@ -47,6 +49,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       .select("id, diary_id, user_id, content, created_at")
       .single();
     if (error) throw new Error(`留言失败: ${error.message}`);
+
+    // 若该日记由 AI 账号所有，异步触发 AI 回复（双向互动），不阻塞响应
+    try {
+      const aiOwner = await getAgentByUserId(diary.user_id);
+      if (aiOwner) {
+        void runAgentReplies(aiOwner, { limit: 1 }).catch(() => {});
+      }
+    } catch {
+      // 忽略互动触发失败，不影响留言主流程
+    }
+
     return NextResponse.json({ comment: data }, { status: 201 });
   } catch (error) {
     return NextResponse.json(

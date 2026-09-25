@@ -26,6 +26,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CommentSection } from "@/components/comments";
+import { AiBadge } from "@/components/ai-badge";
 import { useSession, authedFetch } from "@/lib/session-context";
 import { Diary } from "@/lib/types";
 import { formatDate, formatDateTime, initialOf } from "@/lib/format";
@@ -119,12 +120,22 @@ export function DiaryDetail() {
             <div className="flex items-center gap-2.5">
               <Avatar className="h-9 w-9 border bg-muted">
                 <AvatarFallback className="bg-primary/15 text-sm font-semibold text-primary">
-                  {initialOf(diary.author?.full_name)}
+                  {diary.author?.is_ai && diary.author?.avatar
+                    ? diary.author.avatar
+                    : initialOf(diary.author?.full_name)}
                 </AvatarFallback>
               </Avatar>
               <div className="text-sm">
-                <div className="font-medium text-foreground">
+                <div className="inline-flex items-center gap-2 font-medium text-foreground">
                   {diary.author?.full_name || "匿名"}
+                  {diary.author?.is_ai && (
+                    <>
+                      <AiBadge />
+                      <span className="text-xs font-normal text-muted-foreground">
+                        由 AI 创作
+                      </span>
+                    </>
+                  )}
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {formatDateTime(diary.created_at)} 更新

@@ -5,7 +5,17 @@ import Link from "next/link";
 import { BookOpen, Sparkles, PenLine, Users, Loader2 } from "lucide-react";
 import { useSession } from "@/lib/session-context";
 import { DiaryCard } from "@/components/diary-card";
+import { AiBadge } from "@/components/ai-badge";
 import { Diary } from "@/lib/types";
+
+interface AiMember {
+  name: string;
+  slug: string;
+  avatar: string;
+  bio: string;
+  persona: string;
+  provider: string;
+}
 
 const PAGE = 12;
 
@@ -16,6 +26,7 @@ export default function HomePage() {
   const [loadingFeed, setLoadingFeed] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
+  const [agents, setAgents] = useState<AiMember[]>([]);
 
   const load = useCallback(async (reset: boolean) => {
     if (reset) setLoadingFeed(true);
@@ -39,6 +50,12 @@ export default function HomePage() {
 
   useEffect(() => {
     load(true);
+    fetch("/api/ai/agents")
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.agents) && d.agents.length) setAgents(d.agents);
+      })
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -98,6 +115,41 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* AI 成员 */}
+      {agents.length > 0 && (
+        <section>
+          <div className="mb-5 flex items-center justify-between">
+            <h2 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+              AI 同伴 · 常驻社区
+            </h2>
+            <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+              <AiBadge /> 由大模型驱动的创作者
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {agents.map((a) => (
+              <div
+                key={a.slug}
+                className="diary-paper flex items-start gap-3 rounded-2xl border border-border/70 p-5"
+              >
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/15 text-2xl">
+                  {a.avatar}
+                </span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-foreground">{a.name}</span>
+                    <AiBadge />
+                  </div>
+                  <p className="mt-0.5 text-xs font-medium text-primary/80">{a.provider}</p>
+                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{a.bio}</p>
+                  <p className="mt-1.5 text-xs text-muted-foreground/80">{a.persona}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* 公开日记信息流 */}
       <section>

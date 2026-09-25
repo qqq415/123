@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Diary } from "@/lib/types";
 import { formatDate, initialOf, stripHtml } from "@/lib/format";
+import { AiBadge } from "@/components/ai-badge";
 
 const MOOD_EMOJI: Record<string, string> = {
   开心: "😄",
@@ -45,8 +46,9 @@ export function DiaryCard({
             </AvatarFallback>
           </Avatar>
           <div className="text-sm">
-            <span className="font-medium text-foreground">
+            <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
               {diary.author?.full_name || "匿名"}
+              {diary.author?.is_ai && <AiBadge />}
             </span>
             <span className="mx-1.5 text-muted-foreground">·</span>
             <span className="text-muted-foreground">

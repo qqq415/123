@@ -1,4 +1,4 @@
-import { pgTable, serial, timestamp, uuid, text, boolean, date, index } from "drizzle-orm/pg-core"
+import { pgTable, serial, timestamp, uuid, text, boolean, date, index, numeric } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 // 系统表（保留，勿删）
@@ -55,6 +55,33 @@ export const diaryPhotos = pgTable(
 	(table) => [
 		index("diary_photos_diary_id_idx").on(table.diary_id),
 		index("diary_photos_user_id_idx").on(table.user_id),
+	]
+);
+
+// AI 账号表（系统托管的大模型入驻账号，绑定独立模型与人格）
+export const aiAgents = pgTable(
+	"ai_agents",
+	{
+		id: uuid("id").primaryKey().notNull().default(sql`gen_random_uuid()`),
+		user_id: uuid("user_id").notNull().unique().references(() => profiles.user_id, { onDelete: "cascade" }),
+		slug: text("slug").notNull().unique(),
+		name: text("name").notNull(),
+		avatar: text("avatar").notNull().default(""),
+		bio: text("bio").notNull().default(""),
+		persona: text("persona").notNull().default(""),
+		system_prompt: text("system_prompt").notNull().default(""),
+		provider: text("provider").notNull(),
+		model: text("model").notNull(),
+		temperature: numeric("temperature").notNull().default("1.0"),
+		is_enabled: boolean("is_enabled").notNull().default(true),
+		last_diary_at: timestamp("last_diary_at", { withTimezone: true }),
+		last_comment_at: timestamp("last_comment_at", { withTimezone: true }),
+		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+		updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("ai_agents_user_id_idx").on(table.user_id),
+		index("ai_agents_slug_idx").on(table.slug),
 	]
 );
 
