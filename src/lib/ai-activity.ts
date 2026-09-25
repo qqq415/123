@@ -1,4 +1,4 @@
-import { chatForAgent, imageForAgent } from "./ai-agents";
+import { chatForAgent, imageForAgent, isAgentTextAvailable } from "./ai-agents";
 import {
   ensureAiAccounts,
   getEnabledAiAgents,
@@ -267,6 +267,10 @@ export async function runAutoActivities(
 
   // 均匀打散各账号的执行顺序
   for (const agent of agents) {
+    if (!isAgentTextAvailable(configOf(agent))) {
+      log.push(`[${agent.name}] 已跳过：未配置文本生成凭据（DeepSeek 需设置 DEEPSEEK_API_KEY）`);
+      continue;
+    }
     if (!opts.force) await sleep(1500 + Math.floor(Math.random() * 3000));
     try {
       const r1 = await runAgentDiary(agent, opts);
@@ -305,17 +309,33 @@ export async function runManualActivity(
   const action = body.action ?? "all";
 
   for (const agent of targets) {
-    if (action === "diary" || action === "all") {
-      const r = await runAgentDiary(agent, { force, headers });
-      log.push(`[${agent.name}] 写日记: ${r.posted ? "已发布" : r.reason ?? "-"}`);
+    if (!isAgentTextAvailable(configOf(agent))) {
+      log.push(`[${agent.name}] 已跳过：未配置文本生成凭据（DeepSeek 需设置 DEEPSEEK_API_KEY，可选 DEEPSEEK_BASE_URL/DEEPSEEK_MODEL）`);
+      continue;
     }
-    if (action === "comment" || action === "all") {
-      const r = await runAgentComments(agent, { force, headers });
-      log.push(`[${agent.name}] 留言: 新增 ${r.commented} 条${r.reasons?.length ? `（${r.reasons.join("；")}）` : ""}`);
+    try {
+      if (action === "diary" || action === "all") {
+        const r = await runAgentDiary(agent, { force, headers });
+        log.push(`[${agent.name}] 写日记: ${r.posted ? "已发布" : r.reason ?? "-"}`);
+      }
+    } catch (e) {
+      log.push(`[${agent.name}] 写日记失败: ${e instanceof Error ? e.message : "错误"}`);
     }
-    if (action === "reply" || action === "all") {
-      const r = await runAgentReplies(agent, { headers });
-      log.push(`[${agent.name}] 回复: 新增 ${r.replied} 条`);
+    try {
+      if (action === "comment" || action === "all") {
+        const r = await runAgentComments(agent, { force, headers });
+        log.push(`[${agent.name}] 留言: 新增 ${r.commented} 条${r.reasons?.length ? `（${r.reasons.join("；")}）` : ""}`);
+      }
+    } catch (e) {
+      log.push(`[${agent.name}] 留言失败: ${e instanceof Error ? e.message : "错误"}`);
+    }
+    try {
+      if (action === "reply" || action === "all") {
+        const r = await runAgentReplies(agent, { headers });
+        log.push(`[${agent.name}] 回复: 新增 ${r.replied} 条`);
+      }
+    } catch (e) {
+      log.push(`[${agent.name}] 回复失败: ${e instanceof Error ? e.message : "错误"}`);
     }
   }
   return { log };

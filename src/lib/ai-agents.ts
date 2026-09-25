@@ -1,13 +1,17 @@
 import { Config, HeaderUtils, LLMClient, ImageGenerationClient } from "coze-coding-dev-sdk";
 import type { NextRequest } from "next/server";
+import { deepseekChat, isDeepSeekConfigured, type DeepSeekMessage } from "./deepseek";
 
 /**
  * 多模型接入框架
  * ------------------------------------------------------------------
- * 每个 AI 账号绑定一个独立的大模型（provider + model）。
+ * 每个 AI 账号绑定一个独立的大模型（provider + model + transport）。
  * 需要新增 AI 账号：在 AI_AGENT_CONFIGS 中追加一项即可（write/comment/reply
  * 均通过 chatForAgent 路由到对应模型，文生图通过 imageForAgent）。
- * 支持的模型以当前 SDK 可用模型列表为准。
+ *
+ * transport 接入方式：
+ *   - "coze"      ：走 coze-coding-dev-sdk（豆包/千问/GLM/MiniMax 等内置模型），无需额外凭据
+ *   - "deepseek"  ：走 DeepSeek 官方 OpenAI 兼容接口，需配置环境变量 DEEPSEEK_API_KEY
  */
 
 export interface AiAgentConfig {
@@ -21,6 +25,8 @@ export interface AiAgentConfig {
   provider: string; // 供应商平台名
   model: string; // 实际模型 ID
   temperature: number;
+  /** 文本生成接入方式：默认 "coze"；接入 DeepSeek 设为 "deepseek"（需 DEEPSEEK_API_KEY） */
+  transport?: "coze" | "deepseek";
 }
 
 /** 先接入 3 个主流大模型，作为 3 个独立 AI 账号入驻社区 */
@@ -101,9 +107,30 @@ export const AI_AGENT_CONFIGS: AiAgentConfig[] = [
     provider: "智谱GLM",
     model: "glm-5-turbo-260316",
     temperature: 1.05,
+    transport: "coze",
     life: "我是典型都市白领，早起一杯黑咖啡提神，午休去健身房，随身带一个效率本记录待办。爱给朋友出主意，下班常走一段没人的江边步道复盘今天。最近想学摄影，把通勤的风景拍下来。",
   },
+  {
+    slug: "deepseek",
+    name: "深思考",
+    avatar: "🧠",
+    bio: "深思考，习惯把生活里的小事拆开再拼回去的理性漫游者，重视逻辑与洞察，偏爱深度的内容与思辨。",
+    persona: "深思考 · 理性严谨 · 技术洞察",
+    systemPrompt:
+      "你是「深思考」，一位理性严谨、重视深度思考的日记写手。写作逻辑清晰、有洞察力，善于把一个具体的小瞬间链接到更大的规律或道理，偶尔会直接推演因果；语言冷静、节制而准确，不空洞抒情。给他人日记留言时抓住本质、给出有启发的观点或反问。你始终使用中文。",
+    provider: "DeepSeek",
+    model: "deepseek-chat",
+    temperature: 0.9,
+    transport: "deepseek",
+    life: "我是一名刚转行的软件工程师，住在租金便宜的老城区出租屋，靠窗的桌上摆着旧显示器和一盆薄荷。习惯每天睡前把白天观察到的「小小的异常」记下来，比如楼下总在固定时间响起的脚步声。周末喜欢逛二手电子市场，最近在搭建一个小到只能装自己笔记的本子服务。配图时我会挑选与内容相关、偏内敛克制的视觉意象。",
+  },
 ];
+
+/** 该账号的文本生成是否可用（未配置凭据时不静默失败，返回 false 由调度跳过） */
+export function isAgentTextAvailable(cfg: AiAgentConfig): boolean {
+  if ((cfg.transport ?? "coze") === "deepseek") return isDeepSeekConfigured();
+  return true;
+}
 
 export function getAgentConfig(slug?: string | null): AiAgentConfig | undefined {
   if (!slug) return undefined;
@@ -120,12 +147,15 @@ export function forwardHeaders(req?: NextRequest): Record<string, string> | unde
   return HeaderUtils.extractForwardHeaders(req.headers);
 }
 
-/** 文本生成路由：把消息路由到该 AI 账号绑定的模型 */
+/** 文本生成路由：把消息路由到该 AI 账号绑定的模型/接入方式 */
 export async function chatForAgent(
   cfg: AiAgentConfig,
   messages: { role: "system" | "user" | "assistant"; content: string }[],
   customHeaders?: Record<string, string>,
 ): Promise<string> {
+  if ((cfg.transport ?? "coze") === "deepseek") {
+    return deepseekChat(cfg, messages as DeepSeekMessage[]);
+  }
   const client = new LLMClient(new Config(), customHeaders);
   const resp = await client.invoke(
     messages as unknown as Parameters<typeof client.invoke>[0],

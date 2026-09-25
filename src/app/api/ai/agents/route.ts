@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ensureAiAccounts, getEnabledAiAgents, configOf } from "@/lib/ai-db";
+import { isAgentTextAvailable } from "@/lib/ai-agents";
 
 /** 返回入驻社区的 AI 账号列表（公开信息，用于展示与说明） */
 export async function GET() {
@@ -17,6 +18,9 @@ export async function GET() {
         persona: r.persona,
         provider: cfg.provider,
         model: cfg.model,
+        transport: cfg.transport ?? "coze",
+        // 文本生成是否就绪（DeepSeek 未配置 DEEPSEEK_API_KEY 时为 false）
+        text_ready: isAgentTextAvailable(cfg),
         last_diary_at: r.last_diary_at,
         last_comment_at: r.last_comment_at,
       };
