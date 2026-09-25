@@ -8,6 +8,7 @@ import {
   markAgentActivity,
   createAiDiary,
   createAiComment,
+  getAiDiaryMemory,
   stripHtml,
   persistImageUrl,
   configOf,
@@ -17,8 +18,8 @@ import { getPublicFeed, type Diary } from "./db";
 import type { NextRequest } from "next/server";
 import { forwardHeaders } from "./ai-agents";
 
-export const DIARY_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 每篇日记间隔（默认 6 小时）
-export const COMMENT_COOLDOWN_MS = 30 * 60 * 1000; // 评论活跃冷却（默认 30 分钟）
+export const DIARY_COOLDOWN_MS = 3 * 60 * 60 * 1000; // 每篇日记间隔（默认 3 小时，让 AI 多写自己的生活）
+export const COMMENT_COOLDOWN_MS = 20 * 60 * 1000; // 评论活跃冷却（默认 20 分钟）
 export const COMMENTS_PER_CYCLE = 2;
 
 function today(): string {
@@ -73,21 +74,42 @@ export async function runAgentDiary(
     }
   }
 
-  // 取社区最近公开日记作为灵感
+  // 取社区最近公开日记作为灵感（次要，作为氛围参照）
   let inspiration = "";
   try {
     const feed = await getPublicFeed({ limit: 5 });
     inspiration = feed
       .filter((d) => d.user_id !== agent.user_id)
-      .map((d) => `《${d.title}》${stripHtml(d.content).slice(0, 60)}`)
+      .map((d) => `《${d.title}》${stripHtml(d.content).slice(0, 40)}`)
       .join("；\n");
   } catch {
     inspiration = "";
   }
 
-  const userPrompt = `今天是 ${today()}。请以「${cfg.name}」的口吻撰写一篇日记草稿（300~450 字），记录你自己的见闻与感悟。
-${inspiration ? `社区最新的公开日记可作为灵感（不要照抄）：
+  // 读取"既往记忆"：自己之前写过的日子，让生活叙事连续推进
+  let memory = "";
+  try {
+    const memo = await getAiDiaryMemory(agent, 6);
+    memory = memo.length
+      ? memo
+          .map((m) => `· ${m.date}《${m.title}》：${m.summary}…`)
+          .join("\n")
+      : "(这是你的第一篇日记，从此刻开始记录自己的生活)";
+  } catch {
+    memory = "(暂无法读取过往)";
+  }
+
+  const userPrompt = `今天是 ${today()}。请以「${cfg.name}」的第一人称，写一篇记录"你自己今天的生活"的日记草稿（300~450 字）。
+
+你的固定生活设定：
+${cfg.life}
+
+你之前在《${cfg.name}的日记》里已经写过这些（作为你的生活记忆，请继续推进自己的生活，写一件今天新发生/新感悟的事，不要重复已写过的同一件事，也不必逐条呼应）：
+${memory}
+
+${inspiration ? `社区里的其他公开日记可以给你一点氛围感（但不要照抄、不要以他人为主角）：
 ${inspiration}\n` : ""}
+要求：围绕"你自己"展开，写属于你的、具体的小事与内心感受，保持你一贯的说话风格；有情节、有细节，像一段真实连续的日记。
 必须严格输出 JSON，格式：{"title":"不多于18字的标题","body":"正文，用空行分隔自然段"}。只输出 JSON，不要多余文字。`;
 
   const output = await chatForAgent(
@@ -104,12 +126,12 @@ ${inspiration}\n` : ""}
   if (!body) return { posted: false, reason: "模型未生成正文" };
   const contentHtml = textToHtml(body);
 
-  // 约 1/3 概率生成一张配图
+  // 约 1/2 概率生成一张配图（自己生活的小场景）
   let photoKey: string | null = null;
   try {
-    if (Math.random() < 0.35) {
+    if (Math.random() < 0.5) {
       const urls = await imageForAgent(
-        `与日记《${title}》氛围相配的柔和插画，暖色调，安静治愈，纸感留白`,
+        `与日记《${title}》中记录的生活小场景相配的柔和插画，暖色调，安静治愈，纸感留白`,
         opts.headers,
       );
       if (urls[0]) photoKey = await persistImageUrl(urls[0]);

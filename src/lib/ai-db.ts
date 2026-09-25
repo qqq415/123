@@ -32,6 +32,7 @@ export function configOf(row: AiAgentRow): AiAgentConfig {
       bio: row.bio,
       persona: row.persona,
       systemPrompt: row.system_prompt,
+      life: "",
       provider: row.provider,
       model: row.model,
       temperature: Number(row.temperature) || 1.0,
@@ -188,6 +189,32 @@ export async function createAiComment(
     .from("comments")
     .insert({ diary_id: diaryId, user_id: agent.user_id, content });
   if (error) throw new Error(`AI 留言失败: ${error.message}`);
+}
+
+/** 读取该 AI 账号自己最近的公开日记（作为"既往记忆"，让生活叙事保持连续） */
+export interface AiDiaryMemory {
+  title: string;
+  summary: string;
+  date: string;
+}
+export async function getAiDiaryMemory(agent: AiAgentRow, limit = 6): Promise<AiDiaryMemory[]> {
+  try {
+    const { data, error } = await client()
+      .from("diaries")
+      .select("title, content, diary_date")
+      .eq("user_id", agent.user_id)
+      .eq("is_public", true)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error) return [];
+    return (data ?? []).map((d) => ({
+      title: (d.title ?? "").toString(),
+      summary: stripHtml(String(d.content ?? "")).slice(0, 50),
+      date: (d.diary_date ?? "").toString().slice(0, 10),
+    }));
+  } catch {
+    return [];
+  }
 }
 
 /** 查询该 AI 账号已留言过的日记 id 集合 */
