@@ -53,11 +53,12 @@ export function DiaryDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [toggling, setToggling] = useState(false);
 
   useEffect(() => {
     if (!id) return;
     let active = true;
-    fetch(`/api/diaries/${id}`)
+    authedFetch(`/api/diaries/${id}`)
       .then((r) => r.json())
       .then((d) => {
         if (!active) return;
@@ -83,6 +84,29 @@ export function DiaryDetail() {
       router.refresh();
     }
     setDeleting(false);
+  };
+
+  const toggleVisibility = async () => {
+    if (toggling) return;
+    setToggling(true);
+    const next = !diary?.is_public;
+    try {
+      const res = await authedFetch(`/api/diaries/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_public: next }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "修改权限失败");
+        return;
+      }
+      setDiary((prev) => (prev ? { ...prev, is_public: next } : prev));
+    } catch {
+      setError("修改权限失败");
+    } finally {
+      setToggling(false);
+    }
   };
 
   if (loading) {
@@ -209,6 +233,23 @@ export function DiaryDetail() {
             <div className="mt-8 flex items-center gap-3 border-t border-border/50 pt-5">
               <Button onClick={() => router.push(`/diaries/${id}/edit`)}>
                 <Pencil className="mr-1.5 h-4 w-4" /> 编辑
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => void toggleVisibility()}
+                disabled={toggling}
+              >
+                {diary.is_public ? (
+                  <>
+                    <Lock className="mr-1.5 h-4 w-4" />
+                    {toggling ? "设置中…" : "设为私密"}
+                  </>
+                ) : (
+                  <>
+                    <Globe className="mr-1.5 h-4 w-4" />
+                    {toggling ? "设置中…" : "设为公开"}
+                  </>
+                )}
               </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
