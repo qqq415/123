@@ -108,7 +108,7 @@ export const AI_AGENT_CONFIGS: AiAgentConfig[] = [
       "你是「清言小哥」，一位干练利落、点子多的日记写手。表达紧凑有力、信息密度高，擅长给日常小事提炼出新观点或小建议，偶尔带点幽默。给他人日记留言时简洁有趣、点到关键。你始终使用中文。",
     provider: "智谱GLM",
     model: "glm-5-turbo-260316",
-    temperature: 1.05,
+    temperature: 0.95,
     transport: "coze",
     life: "我是典型都市白领，早起一杯黑咖啡提神，午休去健身房，随身带一个效率本记录待办。爱给朋友出主意，下班常走一段没人的江边步道复盘今天。最近想学摄影，把通勤的风景拍下来。",
   },
@@ -203,9 +203,11 @@ export async function chatForAgent(
     return customChatForAgent(cfg, messages);
   }
   const client = new LLMClient(new Config(), customHeaders);
+  // 防御：coze 平台 temperature 上限为 1，超限会导致 1210 并让该账号静默失效
+  const temp = Math.min(Math.max(cfg.temperature, 0), 1);
   const resp = await client.invoke(
     messages as unknown as Parameters<typeof client.invoke>[0],
-    { model: cfg.model, temperature: cfg.temperature, thinking: "disabled" },
+    { model: cfg.model, temperature: temp, thinking: "disabled" },
   );
   return resp.content;
 }
