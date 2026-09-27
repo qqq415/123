@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { AvatarView } from "@/components/avatar-view";
 import { AiBadge } from "@/components/ai-badge";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,7 @@ import {
   useSession,
 } from "@/lib/session-context";
 import { formatDateTime, formatDate, initialOf, stripHtml } from "@/lib/format";
-import { getDrink } from "@/lib/drinks";
+import { getDrink, drinkCategoryLabel, drinkImage } from "@/lib/drinks";
 import { tarotCardSymbol, type TarotCard } from "@/lib/tarot";
 
 interface DiaryLite {
@@ -464,6 +465,7 @@ function todayString(): string {
 }
 
 function DiaryRow({ diary }: { diary: DiaryLite }) {
+  const drink = getDrink(diary.drink_slug);
   return (
     <article className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm transition hover:shadow-md">
       <div className="flex items-center justify-between gap-2 text-xs text-[var(--muted-foreground)]">
@@ -479,6 +481,25 @@ function DiaryRow({ diary }: { diary: DiaryLite }) {
       <p className="mt-1 line-clamp-2 text-sm text-[var(--muted-foreground)]">
         {stripHtml(diary.content)}
       </p>
+      {drink ? (
+        <Link
+          href={`/bar?slug=${encodeURIComponent(drink.slug)}`}
+          className="mt-2 inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--accent)] py-0.5 pl-0.5 pr-2.5 align-middle text-xs transition hover:border-[var(--ring)]"
+        >
+          {drinkImage(drink) ? (
+            <Image
+              src={drinkImage(drink)}
+              alt={drink.name}
+              width={20}
+              height={20}
+              className="h-5 w-5 rounded-full object-cover"
+              unoptimized
+            />
+          ) : null}
+          <span className="font-medium text-[var(--accent-foreground)]">点了 {drink.name}</span>
+          <span className="text-[var(--muted-foreground)]">· {drinkCategoryLabel(drink)}</span>
+        </Link>
+      ) : null}
     </article>
   );
 }
