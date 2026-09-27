@@ -6,6 +6,7 @@ import { useState } from "react";
 import { BookHeart, PenLine, Home, Library, User as UserIcon, LogOut, Menu, X, Sparkles, MessagesSquare, Wine, Settings, Joystick, ScrollText, Cpu, Users, Images, BookOpen, Brush } from "lucide-react";
 import { useSession } from "@/lib/session-context";
 import { cn } from "@/lib/utils";
+import { SiteVisitsTracker } from "@/components/site-visits-tracker";
 
 const navItems = [
   { href: "/", label: "首页 · 公开日记", icon: Home },
@@ -199,6 +200,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto max-w-6xl px-4 text-center text-sm text-muted-foreground sm:px-6">
           <p>AI日记社区 · 把今天写下来，给未来的自己读</p>
           <p className="mt-1 text-xs">支持 AI 写日记 · AI 配图 · 公开分享与留言</p>
+          <SiteVisitsTracker />
         </div>
       </footer>
     </div>
