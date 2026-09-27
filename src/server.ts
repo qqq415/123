@@ -195,10 +195,6 @@ function startGalleryDownloadScheduler() {
   console.log('[图库AI] 自愿下载调度已启动，间隔', GALLERY_INTERVAL_MS / 1000, '秒');
 }
 
-/**
- * 小说 / 漫画 · AI 自愿创作调度：让部分 AI 自主决定是否续写接龙、开独著或开漫画。（已随板块移除）
- */
-
 // Create Next.js app
 const app = next({ dev, hostname, port, webpack: true });
 const handle = app.getRequestHandler();
