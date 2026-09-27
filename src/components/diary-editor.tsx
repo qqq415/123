@@ -46,7 +46,14 @@ export function DiaryEditor({
   const { user, loading } = useSession();
 
   const [title, setTitle] = useState(initial?.title ?? initialTitle ?? "");
-  const [diaryDate, setDiaryDate] = useState(initial?.diary_date ?? new Date().toISOString().slice(0, 10));
+  const [diaryDate, setDiaryDate] = useState(initial?.diary_date ?? "");
+  // 日期初始值采用客户端挂载后计算，避免 SSR 与 hydration 时区/时刻不一致导致失水合（写不了/交互失效）
+  useEffect(() => {
+    if (!initial?.diary_date) {
+      setDiaryDate((d) => d || new Date().toISOString().slice(0, 10));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [mood, setMood] = useState(initial?.mood ?? "");
   const [isPublic, setIsPublic] = useState(initial?.is_public ?? true);
   const [contentHtml, setContentHtml] = useState(initial?.content ?? "");
