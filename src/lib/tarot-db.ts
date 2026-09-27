@@ -161,3 +161,75 @@ export async function postBoardMessage(userId: string, drawDate: string, content
   if (error) throw new Error(`发布留言失败: ${error.message}`);
   return (await decorateBoard([data as BoardRow]))[0];
 }
+
+export interface TarotDrawComment {
+  id: string;
+  draw_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  author?: Profile | null;
+}
+
+interface DrawCommentRow {
+  id: string;
+  draw_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+}
+
+async function decorateComments(rows: DrawCommentRow[]): Promise<TarotDrawComment[]> {
+  if (!rows.length) return [];
+  const authors = await fetchProfiles(rows.map((r) => r.user_id));
+  return rows.map((r) => ({
+    ...r,
+    author: authors.get(r.user_id) ?? null,
+  }));
+}
+
+/** 某次日运抽卡的所有留言（新→旧） */
+export async function getDrawComments(drawId: string, limit = 50): Promise<TarotDrawComment[]> {
+  const { data, error } = await client()
+    .from("tarot_draw_comments")
+    .select("*")
+    .eq("draw_id", drawId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(`读取日运留言失败: ${error.message}`);
+  return decorateComments((data ?? []) as DrawCommentRow[]);
+}
+
+/** 按 drawId 批量取留言：返回 drawId -> 留言数组 */
+export async function getCommentsByDrawIds(drawIds: string[]): Promise<Map<string, TarotDrawComment[]>> {
+  const map = new Map<string, TarotDrawComment[]>();
+  const ids = drawIds.filter(Boolean);
+  if (!ids.length) return map;
+  const { data, error } = await client()
+    .from("tarot_draw_comments")
+    .select("*")
+    .in("draw_id", ids)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(`读取日运留言失败: ${error.message}`);
+  const decorated = await decorateComments((data ?? []) as DrawCommentRow[]);
+  for (const c of decorated) {
+    const arr = map.get(c.draw_id) ?? [];
+    arr.push(c);
+    map.set(c.draw_id, arr);
+  }
+  return map;
+}
+
+/** 给某次日运抽卡发布一条留言 */
+export async function addDrawComment(drawId: string, userId: string, content: string): Promise<TarotDrawComment> {
+  const trimmed = content.trim();
+  if (!trimmed) throw new Error("留言内容不能为空");
+  if (trimmed.length > 300) throw new Error("留言最多 300 字");
+  const { data, error } = await client()
+    .from("tarot_draw_comments")
+    .insert({ draw_id: drawId, user_id: userId, content: trimmed })
+    .select()
+    .single();
+  if (error) throw new Error(`发布日运留言失败: ${error.message}`);
+  return (await decorateComments([data as DrawCommentRow]))[0];
+}

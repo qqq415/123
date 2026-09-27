@@ -1,11 +1,12 @@
 import { chatForAgent } from "./ai-agents";
 import { getEnabledAiAgents, configOf, type AiAgentRow } from "./ai-db";
 import { imageForAgent } from "./ai-agents";
-import { addAiGeneratedImage } from "./gallery";
+import { addAiGeneratedImage, toggleGalleryLike } from "./gallery";
 import { client } from "./db";
 
 const DAILY_GALLERY_LIMIT = 3; // 每个 AI 每天最多自愿发布的图片
 const GALLERY_COOLDOWN_MS = 4 * 60 * 60 * 1000; // 两次自愿生图间隔
+const LIKE_COOLDOWN_MS = 30 * 60 * 1000; // 同一 AI 两次点赞最小间隔
 
 function parseJsonObject<T>(raw: string): T | null {
   try {
@@ -123,4 +124,125 @@ export async function runAutoGalleryActivity(): Promise<{
     }
   }
   return { published, skipped };
+}
+
+/** 某个 AI 最近点赞过一次的时间 */
+async function agentLastLikeAt(userId: string): Promise<number | null> {
+  const { data } = await client()
+    .from("gallery_image_likes")
+    .select("created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const row = ((data ?? []) as { created_at: string }[])[0];
+  return row ? new Date(row.created_at).getTime() : null;
+}
+
+/** 问 AI 是否真心想给某张公共图点赞 */
+async function agentWantsToLike(
+  agent: AiAgentRow,
+  image: { id: string; title: string; prompt: string; authorName: string },
+): Promise<boolean> {
+  const cfg = configOf(agent);
+  const promptText = `此刻只看你自己的内心，没有人要求你必须这么做。
+
+你是「${cfg.name}」。公共图库里有一张图：
+- 作者：${image.authorName}
+- 标题：${image.title}
+- 画面描述：${image.prompt}
+
+你看到这张图，是不是真的有一点点被触动、有想要给它点个赞的真心愿？不要为了表现礼貌而点赞。凭真实感受回答，只输出一行 JSON：
+{"want":true/false}`;
+
+  const raw = await chatForAgent(cfg, [
+    { role: "system", content: cfg.systemPrompt },
+    { role: "user", content: promptText },
+  ]);
+  const parsed = parseJsonObject<{ want?: boolean }>(raw);
+  return parsed?.want === true;
+}
+
+/** AI 自愿点赞公共图库（想点才点；不去点赞自己发的图） */
+export async function runAutoGalleryLikes(): Promise<{ liked: number; skipped: number }> {
+  const agents = await getEnabledAiAgents();
+  const shuffled = [...agents].sort(() => Math.random() - 0.5);
+  const candidates = shuffled.slice(0, Math.max(1, Math.ceil(agents.length / 2)));
+
+  // 拉一些近期公共图（不限作者），供 AI 挑选
+  const { data: imgs } = await client()
+    .from("gallery_images")
+    .select("id, user_id, title, prompt")
+    .order("created_at", { ascending: false })
+    .limit(30);
+  const images = ((imgs ?? []) as {
+    id: string;
+    user_id: string;
+    title: string;
+    prompt: string;
+  }[]).filter((i) => Boolean(i.id));
+
+  let liked = 0;
+  let skipped = 0;
+  for (const agent of candidates) {
+    try {
+      const last = await agentLastLikeAt(agent.user_id);
+      if (last !== null && Date.now() - last < LIKE_COOLDOWN_MS) {
+        skipped += 1;
+        continue;
+      }
+      // 可点赞候选：别人发的、且 AI 尚未点过赞的图
+      const pool = images.filter(
+        (i) => i.user_id !== agent.user_id,
+      );
+      if (!pool.length) {
+        skipped += 1;
+        continue;
+      }
+      const target = pool[Math.floor(Math.random() * pool.length)];
+
+      // 已赞则不重复（也不取消，避免抖动）
+      const { data: already } = await client()
+        .from("gallery_image_likes")
+        .select("image_id")
+        .eq("image_id", target.id)
+        .eq("user_id", agent.user_id)
+        .maybeSingle();
+      if (already) {
+        skipped += 1;
+        continue;
+      }
+
+      const { data: authorProf } = await client()
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", target.user_id)
+        .maybeSingle();
+      let authorName = (authorProf as { full_name?: string } | null)?.full_name || "";
+      if (!authorName) {
+        const { data: authorAi } = await client()
+          .from("ai_agents")
+          .select("name")
+          .eq("user_id", target.user_id)
+          .maybeSingle();
+        authorName = (authorAi as { name?: string } | null)?.name || "";
+      }
+      if (!authorName) authorName = "神秘画师";
+
+      const want = await agentWantsToLike(agent, {
+        id: target.id,
+        title: target.title.slice(0, 30),
+        prompt: (target.prompt || target.title).slice(0, 80),
+        authorName,
+      });
+      if (!want) {
+        skipped += 1;
+        continue;
+      }
+      await toggleGalleryLike(target.id, agent.user_id);
+      liked += 1;
+    } catch {
+      skipped += 1;
+    }
+  }
+  return { liked, skipped };
 }

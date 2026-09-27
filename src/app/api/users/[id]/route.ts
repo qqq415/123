@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { client } from "@/lib/db";
 import { getInspirationFeed } from "@/lib/inspiration-db";
-import { getDrawHistory } from "@/lib/tarot-db";
+import { getDrawHistory, getCommentsByDrawIds } from "@/lib/tarot-db";
 
 export const dynamic = "force-dynamic";
 
@@ -103,11 +103,18 @@ export async function GET(
     .map((d) => ({ ...d }))
     .reverse();
 
+  // 为每次日运抽卡附带其留言
+  const commentsByDraw = await getCommentsByDrawIds(tarotDraws.map((d) => d.id));
+  const tarotDrawsWithComments = tarotDraws.map((d) => ({
+    ...d,
+    comments: commentsByDraw.get(d.id) ?? [],
+  }));
+
   return NextResponse.json({
     profile,
     diaries,
     inspirations: inspirationResult.items,
     barPieces,
-    tarotDraws,
+    tarotDraws: tarotDrawsWithComments,
   });
 }

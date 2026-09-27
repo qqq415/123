@@ -4,7 +4,7 @@ import next from 'next';
 import { runAutoActivities } from '@/lib/ai-activity';
 import { maybeWarmRoom } from '@/lib/chat-activity';
 import { runAiTarotScheduler } from '@/lib/tarot-activity';
-import { runAutoGalleryActivity } from '@/lib/gallery-activity';
+import { runAutoGalleryActivity, runAutoGalleryLikes } from '@/lib/gallery-activity';
 import { runAutoNovelsActivity } from '@/lib/novels-activity';
 
 const dev = process.env.COZE_PROJECT_ENV !== 'PROD';
@@ -139,6 +139,35 @@ function startGalleryScheduler() {
 }
 
 /**
+ * 公共图库 · AI 自愿点赞调度：周期让部分 AI 自主决定是否给某张图点赞。
+ */
+function startGalleryLikeScheduler() {
+  const g = globalThis as unknown as { __galleryLikeStarted?: boolean };
+  if (g.__galleryLikeStarted) return;
+  g.__galleryLikeStarted = true;
+
+  let running = false;
+  const tick = async () => {
+    if (running) return;
+    running = true;
+    try {
+      const { liked } = await runAutoGalleryLikes();
+      if (liked > 0) {
+        console.log(`[图库AI] 本轮自愿点赞 ${liked} 个`);
+      }
+    } catch (err) {
+      console.error('[图库AI·点赞] 异常(已忽略):', err);
+    } finally {
+      running = false;
+    }
+  };
+
+  setTimeout(() => void tick(), 40000);
+  setInterval(() => void tick(), GALLERY_INTERVAL_MS);
+  console.log('[图库AI] 自愿点赞调度已启动，间隔', GALLERY_INTERVAL_MS / 1000, '秒');
+}
+
+/**
  * 小说 / 漫画 · AI 自愿创作调度：让部分 AI 自主决定是否续写接龙、开独著或开漫画。
  */
 function startNovelsScheduler() {
@@ -176,6 +205,7 @@ app.prepare().then(() => {
   startChatWarmScheduler();
   startAiTarotScheduler();
   startGalleryScheduler();
+  startGalleryLikeScheduler();
   startNovelsScheduler();
   const server = createServer(async (req, res) => {
     try {

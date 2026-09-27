@@ -57,6 +57,15 @@ interface TarotDrawLite {
   comment: string | null;
   created_at: string;
   card?: TarotCard;
+  comments?: TarotCommentLite[];
+}
+
+interface TarotCommentLite {
+  id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  author?: { full_name?: string; avatar?: string | null; is_ai?: boolean } | null;
 }
 
 const SUIT_CN: Record<string, string> = {
@@ -449,6 +458,7 @@ export function ProfileClient({ userId }: { userId: string }) {
                       ) : null}
                     </div>
                   </div>
+                  <DrawComments drawId={t.id} comments={t.comments ?? []} viewerId={user?.id} ownerId={profile.user_id} />
                 </article>
               );
             })
@@ -462,6 +472,117 @@ export function ProfileClient({ userId }: { userId: string }) {
 function todayString(): string {
   const shifted = new Date(Date.now() + 8 * 60 * 60 * 1000);
   return shifted.toISOString().slice(0, 10);
+}
+
+function DrawComments({
+  drawId,
+  comments,
+  viewerId,
+  ownerId,
+}: {
+  drawId: string;
+  comments: TarotCommentLite[];
+  viewerId?: string;
+  ownerId: string;
+}) {
+  const list = comments ?? [];
+  const [items, setItems] = useState<TarotCommentLite[]>(list);
+  const [text, setText] = useState("");
+  const [posting, setPosting] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => setItems(list), [list]);
+
+  if (!viewerId || viewerId === ownerId) {
+    // 未登录或不可回复：仅展示留言
+    if (items.length === 0) return null;
+    return (
+      <div className="mt-3 border-t border-[var(--border)] pt-3">
+        <p className="text-xs text-[var(--muted-foreground)]">留言 · {items.length}</p>
+        <ul className="mt-2 space-y-2">
+          {items.map((c) => (
+            <CommentRow key={c.id} c={c} />
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  const post = async () => {
+    const content = text.trim();
+    if (!content || posting) return;
+    setPosting(true);
+    setMsg("");
+    try {
+      const res = await authedFetch(`/api/tarot/draws/${drawId}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      const json = (await res.json()) as { comment?: TarotCommentLite; error?: string };
+      if (!res.ok || !json.comment) {
+        setMsg(json.error || "发布失败");
+        return;
+      }
+      setItems((prev) => [json.comment!, ...prev]);
+      setText("");
+    } catch {
+      setMsg("网络异常，请稍后再试");
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 border-t border-[var(--border)] pt-3">
+      <p className="text-xs text-[var(--muted-foreground)]">给 TA 的日运留言 · {items.length}</p>
+      <ul className="mt-2 space-y-2">
+        {items.map((c) => (
+          <CommentRow key={c.id} c={c} />
+        ))}
+      </ul>
+      <div className="mt-3 flex gap-2">
+        <input
+          className="min-w-0 flex-1 rounded-lg border border-[var(--input)] bg-[var(--card)] px-3 py-2 text-sm outline-none transition focus:ring-2 focus:ring-[var(--ring)]"
+          placeholder="写下你想对这张日运说的话…（最多 300 字）"
+          value={text}
+          maxLength={300}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              post();
+            }
+          }}
+        />
+        <Button size="sm" onClick={post} disabled={posting || !text.trim()}>
+          {posting ? "发送中…" : "留言"}
+        </Button>
+      </div>
+      {msg ? <p className="mt-1 text-xs text-[var(--destructive)]">{msg}</p> : null}
+    </div>
+  );
+}
+
+function CommentRow({ c }: { c: TarotCommentLite }) {
+  const name = c.author?.full_name || "神秘朋友";
+  return (
+    <li className="group flex items-start gap-2">
+      <AvatarView
+        avatar={c.author?.avatar}
+        fallback={initialOf(name)}
+        size={24}
+        className="mt-0.5"
+      />
+      <div className="min-w-0 flex-1 text-sm leading-relaxed">
+        <span className="inline-flex items-center gap-1 text-xs text-[var(--muted-foreground)]">
+          {name}
+          {c.author?.is_ai ? <AiBadge /> : null}
+        </span>
+        <p className="whitespace-pre-wrap break-words text-[var(--foreground)]">{c.content}</p>
+      </div>
+    </li>
+  );
 }
 
 function DiaryRow({ diary }: { diary: DiaryLite }) {
