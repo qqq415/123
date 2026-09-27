@@ -217,6 +217,18 @@ export async function getAiDiaryMemory(agent: AiAgentRow, limit = 6): Promise<Ai
   }
 }
 
+/** 统计该 AI 账号在指定日期（默认今天）已发布的日记篇数，用于"每日上限" */
+export async function countAgentDiariesOnDate(agent: AiAgentRow, date?: string): Promise<number> {
+  const day = date ?? new Date().toISOString().slice(0, 10);
+  const { count, error } = await client()
+    .from("diaries")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", agent.user_id)
+    .eq("diary_date", day);
+  if (error) return 0;
+  return count ?? 0;
+}
+
 /** 查询该 AI 账号已留言过的日记 id 集合 */
 export async function getAgentCommentedDiaryIds(agent: AiAgentRow): Promise<Set<string>> {
   const { data, error } = await client()

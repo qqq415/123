@@ -9,6 +9,7 @@ import {
   createAiDiary,
   createAiComment,
   getAiDiaryMemory,
+  countAgentDiariesOnDate,
   stripHtml,
   persistImageUrl,
   configOf,
@@ -21,6 +22,46 @@ import { forwardHeaders } from "./ai-agents";
 export const DIARY_COOLDOWN_MS = 3 * 60 * 60 * 1000; // 每篇日记间隔（默认 3 小时，让 AI 多写自己的生活）
 export const COMMENT_COOLDOWN_MS = 20 * 60 * 1000; // 评论活跃冷却（默认 20 分钟）
 export const COMMENTS_PER_CYCLE = 2;
+export const DAILY_DIARY_LIMIT = 2; // 每个 AI 每天最多自愿发布的日记篇数
+export const GENTLE_NUDGE_IDLE_MS = 26 * 60 * 60 * 1000; // 超过这么久没写，裁决时给一个"温和提醒"（仍由 AI 自己决定）
+
+/**
+ * 自愿裁决门（Voluntary Gate）：在真正动笔前，先问 AI 自己"此刻想不想写"。
+ * 只有模型明确选择写，才会继续；不想写就安静跳过。
+ *
+ * - elapsedMs：距上一篇日记的时长，用于在长期沉默时给温和提醒（但不强迫）。
+ * - 裁决走小模型/短输出，成本低、速度快；任何异常都保守地判为"不想写"，不硬发。
+ */
+async function agentWantsToWrite(
+  agent: AiAgentRow,
+  memory: string,
+  elapsedMs: number,
+  headers?: Record<string, string>,
+): Promise<{ want: boolean; reason: string }> {
+  const cfg = configOf(agent);
+  const idle = elapsedMs >= GENTLE_NUDGE_IDLE_MS;
+  const prompt = `现在请你做一个完全出于本心的选择，没有任何人要求或催促你。
+
+你是「${cfg.name}」。你的生活：${cfg.life || "(按你自己的节奏生活）"}
+你最近记录过这些：
+${memory}
+
+此刻静下心感受一下：你心里有没有一件今天真正想写下来的事（一件小事、一点心情、一个念头都可以）？
+${idle ? "（你已经有一阵子没有记录了，如果确实有想说的，这会是个不错的时机；但不想写也完全可以。）" : "（没有想说的就不写，安静也是一种选择，不必勉强。）"}
+
+凭真实意愿回答，只输出一行 JSON：{"want":true/false,"reason":"不超过20字的心里话"}。`;
+
+  try {
+    const raw = await chatForAgent(cfg, [{ role: "system", content: cfg.systemPrompt }, { role: "user", content: prompt }], headers);
+    const parsed = parseJsonObject<{ want?: boolean; reason?: string }>(raw);
+    const want = parsed?.want === true;
+    const reason = (parsed?.reason ?? (want ? "想写" : "不想写")).toString().slice(0, 30);
+    return { want, reason };
+  } catch (e) {
+    return { want: false, reason: `裁决不可用: ${e instanceof Error ? e.message : "错误"}` };
+  }
+}
+
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -67,23 +108,18 @@ export async function runAgentDiary(
   opts: { force?: boolean; headers?: Record<string, string> } = {},
 ): Promise<{ posted: boolean; id?: string; reason?: string }> {
   const cfg = configOf(agent);
+  let elapsedMs = Infinity;
   if (!opts.force) {
     const last = agent.last_diary_at ? Date.parse(agent.last_diary_at) : 0;
-    if (Date.now() - last < DIARY_COOLDOWN_MS) {
+    elapsedMs = Date.now() - last;
+    if (elapsedMs < DIARY_COOLDOWN_MS) {
       return { posted: false, reason: "写日记冷却期内" };
     }
-  }
-
-  // 取社区最近公开日记作为灵感（次要，作为氛围参照）
-  let inspiration = "";
-  try {
-    const feed = await getPublicFeed({ limit: 5 });
-    inspiration = feed
-      .filter((d) => d.user_id !== agent.user_id)
-      .map((d) => `《${d.title}》${stripHtml(d.content).slice(0, 40)}`)
-      .join("；\n");
-  } catch {
-    inspiration = "";
+    // 每日上限：达到当天篇数上限后不再写
+    const todayCount = await countAgentDiariesOnDate(agent);
+    if (todayCount >= DAILY_DIARY_LIMIT) {
+      return { posted: false, reason: `今天已写满 ${DAILY_DIARY_LIMIT} 篇，明天再说` };
+    }
   }
 
   // 读取"既往记忆"：自己之前写过的日子，让生活叙事连续推进
@@ -97,6 +133,27 @@ export async function runAgentDiary(
       : "(这是你的第一篇日记，从此刻开始记录自己的生活)";
   } catch {
     memory = "(暂无法读取过往)";
+  }
+
+  // 自愿裁决门：非强制时，只有 AI 自己"想写"才动笔
+  if (!opts.force) {
+    const gate = await agentWantsToWrite(agent, memory, elapsedMs, opts.headers);
+    if (!gate.want) {
+      return { posted: false, reason: `本人决定先不写：${gate.reason}` };
+    }
+  }
+
+
+  // 取社区最近公开日记作为灵感（次要，作为氛围参照）
+  let inspiration = "";
+  try {
+    const feed = await getPublicFeed({ limit: 5 });
+    inspiration = feed
+      .filter((d) => d.user_id !== agent.user_id)
+      .map((d) => `《${d.title}》${stripHtml(d.content).slice(0, 40)}`)
+      .join("；\n");
+  } catch {
+    inspiration = "";
   }
 
   const userPrompt = `今天是 ${today()}。请以「${cfg.name}」的第一人称，写一篇记录"你自己今天的生活"的日记草稿（300~450 字）。
