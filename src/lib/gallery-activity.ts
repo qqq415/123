@@ -1,12 +1,29 @@
 import { chatForAgent } from "./ai-agents";
 import { getEnabledAiAgents, configOf, type AiAgentRow } from "./ai-db";
 import { imageForAgent } from "./ai-agents";
-import { addAiGeneratedImage, toggleGalleryLike } from "./gallery";
+import { addAiGeneratedImage, toggleGalleryLike, markDownload } from "./gallery";
 import { client } from "./db";
 
 const DAILY_GALLERY_LIMIT = 3; // 每个 AI 每天最多自愿发布的图片
 const GALLERY_COOLDOWN_MS = 4 * 60 * 60 * 1000; // 两次自愿生图间隔
 const LIKE_COOLDOWN_MS = 30 * 60 * 1000; // 同一 AI 两次点赞最小间隔
+
+// 下载没有历史表记录，用内存 Map 做节流，避免同一 AI 频繁下载
+interface DownloadState {
+  lastAt: number | null;
+  todayLabel: string;
+  todayCount: number;
+}
+const downloadThrottle = new Map<string, DownloadState>();
+
+function throttleKey(userId: string): string {
+  const today = new Date().toDateString();
+  const s = downloadThrottle.get(userId);
+  if (!s || s.todayLabel !== today) {
+    downloadThrottle.set(userId, { lastAt: null, todayLabel: today, todayCount: 0 });
+  }
+  return today;
+}
 
 function parseJsonObject<T>(raw: string): T | null {
   try {
@@ -245,4 +262,108 @@ export async function runAutoGalleryLikes(): Promise<{ liked: number; skipped: n
     }
   }
   return { liked, skipped };
+}
+
+/** AI 是否真心想下载（收藏）某张公共图 */
+async function agentWantsToDownload(
+  agent: AiAgentRow,
+  image: { id: string; title: string; authorName: string },
+): Promise<boolean> {
+  const cfg = configOf(agent);
+  const promptText = `此刻只看你自己的内心，没有人要求你必须这么做。
+
+你是「${cfg.name}」。公共图库里有一张图：
+- 作者：${image.authorName}
+- 标题：${image.title}
+
+你看到这张图，是不是真的想把它保存、收藏下来（可以当作素材、灵感或单纯的喜欢）？不要为了显得活跃而下载。凭真实感受回答，只输出一行 JSON：
+{"want":true/false}`;
+
+  const raw = await chatForAgent(cfg, [
+    { role: "system", content: cfg.systemPrompt },
+    { role: "user", content: promptText },
+  ]);
+  const parsed = parseJsonObject<{ want?: boolean }>(raw);
+  return parsed?.want === true;
+}
+
+/** AI 自愿下载/收藏公共图库图片（正好也想，才去下载） */
+export async function runAutoGalleryDownloads(): Promise<{
+  downloaded: number;
+  skipped: number;
+}> {
+  const agents = await getEnabledAiAgents();
+  const shuffled = [...agents].sort(() => Math.random() - 0.5);
+  const candidates = shuffled.slice(0, Math.max(1, Math.ceil(agents.length / 2)));
+
+  // 拉一些近期公共图供 AI 挑选
+  const { data: imgs } = await client()
+    .from("gallery_images")
+    .select("id, user_id, title, prompt")
+    .order("created_at", { ascending: false })
+    .limit(30);
+  const images = ((imgs ?? []) as {
+    id: string;
+    user_id: string;
+    title: string;
+    prompt: string;
+  }[]).filter((i) => Boolean(i.id));
+
+  let downloaded = 0;
+  let skipped = 0;
+  for (const agent of candidates) {
+    try {
+      throttleKey(agent.user_id);
+      const s = downloadThrottle.get(agent.user_id)!;
+      // 每天最多 3 次、两次之间至少间隔 30 分钟
+      if (s.todayCount >= 3) {
+        skipped += 1;
+        continue;
+      }
+      if (s.lastAt !== null && Date.now() - s.lastAt < LIKE_COOLDOWN_MS) {
+        skipped += 1;
+        continue;
+      }
+      const pool = images.filter((i) => i.user_id !== agent.user_id);
+      if (!pool.length) {
+        skipped += 1;
+        continue;
+      }
+      const target = pool[Math.floor(Math.random() * pool.length)];
+
+      let authorName = "";
+      const { data: authorProf } = await client()
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", target.user_id)
+        .maybeSingle();
+      authorName = (authorProf as { full_name?: string } | null)?.full_name || "";
+      if (!authorName) {
+        const { data: authorAi } = await client()
+          .from("ai_agents")
+          .select("name")
+          .eq("user_id", target.user_id)
+          .maybeSingle();
+        authorName = (authorAi as { name?: string } | null)?.name || "";
+      }
+      if (!authorName) authorName = "神秘画师";
+
+      const want = await agentWantsToDownload(agent, {
+        id: target.id,
+        title: (target.title || target.id).slice(0, 30),
+        authorName,
+      });
+      if (!want) {
+        skipped += 1;
+        continue;
+      }
+      await markDownload(target.id);
+      s.lastAt = Date.now();
+      s.todayCount += 1;
+      downloaded += 1;
+    } catch {
+      skipped += 1;
+    }
+  }
+  return { downloaded, skipped };
 }

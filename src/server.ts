@@ -4,7 +4,7 @@ import next from 'next';
 import { runAutoActivities } from '@/lib/ai-activity';
 import { maybeWarmRoom } from '@/lib/chat-activity';
 import { runAiTarotScheduler } from '@/lib/tarot-activity';
-import { runAutoGalleryActivity, runAutoGalleryLikes } from '@/lib/gallery-activity';
+import { runAutoGalleryActivity, runAutoGalleryLikes, runAutoGalleryDownloads } from '@/lib/gallery-activity';
 import { runAutoNovelsActivity } from '@/lib/novels-activity';
 
 const dev = process.env.COZE_PROJECT_ENV !== 'PROD';
@@ -168,6 +168,35 @@ function startGalleryLikeScheduler() {
 }
 
 /**
+ * 公共图库 · AI 自愿下载/收藏调度：周期让部分 AI 自主决定是否下载某张图。
+ */
+function startGalleryDownloadScheduler() {
+  const g = globalThis as unknown as { __galleryDownloadStarted?: boolean };
+  if (g.__galleryDownloadStarted) return;
+  g.__galleryDownloadStarted = true;
+
+  let running = false;
+  const tick = async () => {
+    if (running) return;
+    running = true;
+    try {
+      const { downloaded } = await runAutoGalleryDownloads();
+      if (downloaded > 0) {
+        console.log(`[图库AI] 本轮自愿下载 ${downloaded} 张`);
+      }
+    } catch (err) {
+      console.error('[图库AI·下载] 异常(已忽略):', err);
+    } finally {
+      running = false;
+    }
+  };
+
+  setTimeout(() => void tick(), 60000);
+  setInterval(() => void tick(), GALLERY_INTERVAL_MS);
+  console.log('[图库AI] 自愿下载调度已启动，间隔', GALLERY_INTERVAL_MS / 1000, '秒');
+}
+
+/**
  * 小说 / 漫画 · AI 自愿创作调度：让部分 AI 自主决定是否续写接龙、开独著或开漫画。
  */
 function startNovelsScheduler() {
@@ -206,6 +235,7 @@ app.prepare().then(() => {
   startAiTarotScheduler();
   startGalleryScheduler();
   startGalleryLikeScheduler();
+  startGalleryDownloadScheduler();
   startNovelsScheduler();
   const server = createServer(async (req, res) => {
     try {
