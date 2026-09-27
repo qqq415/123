@@ -14,6 +14,22 @@ interface DrawData {
   created_at: string;
 }
 
+interface BoardAuthor {
+  user_id: string;
+  full_name: string;
+  avatar: string | null;
+  is_ai?: boolean;
+}
+
+interface BoardMessage {
+  id: string;
+  user_id: string;
+  draw_date: string;
+  content: string;
+  created_at: string;
+  author?: BoardAuthor | null;
+}
+
 export default function TarotClient() {
   const { user } = useSession();
   const [today, setToday] = useState<DrawData | null>(null);
@@ -21,6 +37,7 @@ export default function TarotClient() {
   const [loading, setLoading] = useState(true);
   const [browsing, setBrowsing] = useState(false);
   const [rolling, setRolling] = useState(false);
+  const [board, setBoard] = useState<BoardMessage[]>([]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -34,9 +51,23 @@ export default function TarotClient() {
     }
   }, []);
 
+  const loadBoard = useCallback(async () => {
+    try {
+      const res = await authedFetch("/api/tarot/board");
+      const data = await res.json();
+      setBoard(data.messages ?? []);
+    } catch {
+      setBoard([]);
+    }
+  }, []);
+
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (user) loadBoard();
+  }, [user, loadBoard]);
 
   if (loading) {
     return <div className="py-20 text-center text-sm text-[var(--muted-foreground)]">洗牌中…</div>;
@@ -90,6 +121,8 @@ export default function TarotClient() {
       {browsing && !today && <DeckPicker onPicked={() => setBrowsing(false)} />}
 
       {today && <HistoryList items={history} />}
+
+      <TarotBoard messages={board} onReload={loadBoard} />
     </div>
   );
 }
@@ -272,6 +305,93 @@ function HistoryList({ items }: { items: DrawData[] }) {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function boardTime(iso: string): string {
+  return new Date(iso).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+/** 今日塔罗公共留言板 */
+function TarotBoard({ messages, onReload }: { messages: BoardMessage[]; onReload: () => Promise<void> }) {
+  const [text, setText] = useState("");
+  const [posting, setPosting] = useState(false);
+  const { user } = useSession();
+
+  const submit = async () => {
+    const content = text.trim();
+    if (!content) return;
+    setPosting(true);
+    try {
+      await authedFetch("/api/tarot/board", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      setText("");
+      await onReload();
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  return (
+    <div className="mx-auto mt-10 max-w-2xl rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 shadow-md">
+      <div className="mb-4 flex items-center justify-between">
+        <p className="font-serif text-lg font-bold text-[var(--foreground)]">今日塔罗留言板</p>
+        <span className="text-[11px] text-[var(--muted-foreground)]">{messages.length} 条留言</span>
+      </div>
+
+      {messages.length > 0 ? (
+        <ul className="flex flex-col gap-3">
+          {messages.map((m) => {
+            const a = m.author;
+            return (
+              <li key={m.id} className="flex gap-3">
+                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--secondary)] text-base">
+                  {a?.avatar || "👤"}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-[var(--foreground)]">{a?.full_name || "成员"}</span>
+                    {a?.is_ai && (
+                      <span className="rounded-full bg-[#B56A3C]/10 px-1.5 py-0.5 text-[10px] font-medium text-[#B56A3C]">
+                        ✦ AI 创作
+                      </span>
+                    )}
+                    <span className="text-[11px] text-[var(--muted-foreground)]">{boardTime(m.created_at)}</span>
+                  </div>
+                  <p className="mt-0.5 text-sm leading-relaxed text-[var(--foreground)]">{m.content}</p>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="py-6 text-center text-sm text-[var(--muted-foreground)]">
+          今天还没有留言。抽完今日牌，来留言板上留下一句给今天的自己或大家的话吧。
+        </p>
+      )}
+
+      <div className="mt-4 flex gap-2">
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
+          maxLength={200}
+          placeholder={user ? `以 ${user.full_name} 的身份说点什么…` : "登录后即可留言"}
+          disabled={!user || posting}
+          className="min-w-0 flex-1 rounded-lg border border-[var(--input)] bg-[var(--background)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--ring)]"
+        />
+        <button
+          onClick={submit}
+          disabled={!user || posting || !text.trim()}
+          className="inline-flex h-9 items-center justify-center rounded-lg bg-[var(--primary)] px-5 text-sm text-white hover:opacity-90 disabled:opacity-50"
+        >
+          留言
+        </button>
       </div>
     </div>
   );

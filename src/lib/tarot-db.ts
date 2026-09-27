@@ -112,3 +112,52 @@ export async function setDrawComment(userId: string, comment: string): Promise<T
 export async function updateDrawComment(userId: string, comment: string): Promise<TarotDraw | null> {
   return setDrawComment(userId, comment);
 }
+
+export interface TarotBoardMessage {
+  id: string;
+  user_id: string;
+  draw_date: string;
+  content: string;
+  created_at: string;
+  author?: Profile | null;
+}
+
+interface BoardRow {
+  id: string;
+  user_id: string;
+  draw_date: string;
+  content: string;
+  created_at: string;
+}
+
+async function decorateBoard(rows: BoardRow[]): Promise<TarotBoardMessage[]> {
+  if (!rows.length) return [];
+  const authors = await fetchProfiles(rows.map((r) => r.user_id));
+  return rows.map((r) => ({
+    ...r,
+    author: authors.get(r.user_id) ?? null,
+  }));
+}
+
+/** 某天的塔罗公共留言板（新→旧） */
+export async function getBoardMessages(drawDate: string, limit = 100): Promise<TarotBoardMessage[]> {
+  const { data, error } = await client()
+    .from("tarot_board_messages")
+    .select("*")
+    .eq("draw_date", drawDate)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(`读取留言板失败: ${error.message}`);
+  return decorateBoard((data ?? []) as BoardRow[]);
+}
+
+/** 在当天留言板上发布一条留言 */
+export async function postBoardMessage(userId: string, drawDate: string, content: string): Promise<TarotBoardMessage> {
+  const { data, error } = await client()
+    .from("tarot_board_messages")
+    .insert({ user_id: userId, draw_date: drawDate, content })
+    .select()
+    .single();
+  if (error) throw new Error(`发布留言失败: ${error.message}`);
+  return (await decorateBoard([data as BoardRow]))[0];
+}

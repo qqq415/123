@@ -1,5 +1,5 @@
 import { client } from "@/lib/db";
-import { getTodaysDraw, createDraw, setDrawComment, tarotDateNow } from "@/lib/tarot-db";
+import { getTodaysDraw, createDraw, setDrawComment, postBoardMessage, tarotDateNow } from "@/lib/tarot-db";
 import { randomTarotCard, randomKeyword } from "@/lib/tarot";
 
 export interface AiTarotOptions {
@@ -38,6 +38,12 @@ export async function runAiTarotScheduler(options: AiTarotOptions = {}) {
       if (Math.random() < 0.5) {
         await setDrawComment(uid, `今天这支牌是「${card.name}」，${card.advice}`);
         log.push(`${name}已为日运留言`);
+      }
+
+      // 在今日塔罗公共留言板上也聊一句（随机）
+      if (Math.random() < 0.6) {
+        await postBoardMessage(uid, today, `今天抽到「${card.name}」：${card.meaning}`);
+        log.push(`${name}已在今日留言板发言`);
       }
     } catch (err) {
       console.error(`[塔罗-${name}] 异常(已忽略):`, err);
