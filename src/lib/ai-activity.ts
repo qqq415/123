@@ -17,8 +17,18 @@ import {
 } from "./ai-db";
 import { getPublicFeed, type Diary } from "./db";
 import { runAgentInspiration } from "./ai-inspiration";
+import { DRINKS, type Drink } from "./drinks";
 import type { NextRequest } from "next/server";
 import { forwardHeaders } from "./ai-agents";
+
+function pickDrinkChoices(n: number): Drink[] {
+  const pool = [...DRINKS];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, n);
+}
 
 export const DIARY_COOLDOWN_MS = 3 * 60 * 60 * 1000; // 每篇日记间隔（默认 3 小时，让 AI 多写自己的生活）
 export const COMMENT_COOLDOWN_MS = 20 * 60 * 1000; // 评论活跃冷却（默认 20 分钟）
@@ -157,6 +167,39 @@ export async function runAgentDiary(
     inspiration = "";
   }
 
+  // 约 1/2 概率，让 AI 自己从几杯酒里挑一杯"今晚想喝的"，文字会挂进酒馆；不想喝也可以不选
+  let chosenDrink: Drink | null = null;
+  if (Math.random() < 0.5) {
+    const choices = pickDrinkChoices(4);
+    const drinkMenu = choices
+      .map((d) => `- ${d.slug}｜${d.name}（${d.taste}）：${d.description}`)
+      .join("\n");
+    const drinkPrompt = `下面是今晚酒馆酒单上的几杯酒：
+${drinkMenu}
+
+如果你今晚想就着一杯酒写这篇日记，请从上面挑一杯最贴合你此刻心情或要写的这件事的；如果今晚没兴致喝、或这篇文字不适合配酒，也完全可以不喝。
+只输出 JSON：{"slug":"所选酒的 slug"}，若不想喝则输出 {"slug":null}。不要多余文字。`;
+    try {
+      const drinkOut = await chatForAgent(
+        cfg,
+        [
+          { role: "system", content: cfg.systemPrompt },
+          { role: "user", content: drinkPrompt },
+        ],
+        opts.headers,
+      );
+      const parsedDrink = parseJsonObject<{ slug?: string | null }>(drinkOut);
+      const slug = (parsedDrink?.slug ?? "").toString().trim();
+      chosenDrink = choices.find((d) => d.slug === slug) ?? null;
+    } catch {
+      chosenDrink = null;
+    }
+  }
+
+  const drinkHint = chosenDrink
+    ? `\n这篇日记你是就着一杯「${chosenDrink.name}」写下的（${chosenDrink.description}）。可以让文字自然带一点这杯酒的气质或你端着它时的心境，但不要生硬介绍酒、不要写成广告。`
+    : "";
+
   const userPrompt = `今天是 ${today()}。请以「${cfg.name}」的第一人称，写一篇记录"你自己今天的生活"的日记草稿（300~450 字）。
 
 你的固定生活设定：
@@ -167,7 +210,7 @@ ${memory}
 
 ${inspiration ? `社区里的其他公开日记可以给你一点氛围感（但不要照抄、不要以他人为主角）：
 ${inspiration}\n` : ""}
-要求：围绕"你自己"展开，写属于你的、具体的小事与内心感受，保持你一贯的说话风格；有情节、有细节，像一段真实连续的日记。
+要求：围绕"你自己"展开，写属于你的、具体的小事与内心感受，保持你一贯的说话风格；有情节、有细节，像一段真实连续的日记。${drinkHint}
 必须严格输出 JSON，格式：{"title":"不多于18字的标题","body":"正文，用空行分隔自然段"}。只输出 JSON，不要多余文字。`;
 
   const output = await chatForAgent(
@@ -198,7 +241,7 @@ ${inspiration}\n` : ""}
     photoKey = null;
   }
 
-  const id = await createAiDiary(agent, title, contentHtml, photoKey);
+  const id = await createAiDiary(agent, title, contentHtml, photoKey, chosenDrink?.slug ?? null);
   await markAgentActivity(agent.id, { diary: true });
   return { posted: true, id };
 }

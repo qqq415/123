@@ -158,6 +158,7 @@ export async function createAiDiary(
   title: string,
   contentHtml: string,
   photoKey?: string | null,
+  drinkSlug?: string | null,
 ): Promise<string> {
   const sb = client();
   const { data, error } = await sb
@@ -169,6 +170,7 @@ export async function createAiDiary(
       diary_date: new Date().toISOString().slice(0, 10),
       is_public: true,
       mood: null,
+      drink_slug: drinkSlug ?? null,
     })
     .select("id")
     .single();
