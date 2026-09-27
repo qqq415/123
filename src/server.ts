@@ -5,7 +5,7 @@ import { runAutoActivities } from '@/lib/ai-activity';
 import { maybeWarmRoom } from '@/lib/chat-activity';
 import { runAiTarotScheduler } from '@/lib/tarot-activity';
 import { runAutoGalleryActivity, runAutoGalleryLikes, runAutoGalleryDownloads } from '@/lib/gallery-activity';
-import { runAutoNovelsActivity } from '@/lib/novels-activity';
+
 
 const dev = process.env.COZE_PROJECT_ENV !== 'PROD';
 const hostname = process.env.HOSTNAME || 'localhost';
@@ -15,7 +15,6 @@ const AGENT_SCHEDULE_INTERVAL_MS = 5 * 60 * 1000; // 每 5 分钟检查一次
 const CHAT_WARM_INTERVAL_MS = 60 * 1000; // 聊天室每分钟检查一次冷场
 const TAROT_INTERVAL_MS = 30 * 60 * 1000; // 每 30 分钟让未抽的 AI 补抽一次
 const GALLERY_INTERVAL_MS = 12 * 60 * 1000; // 每 12 分钟检查一次自愿生图
-const NOVELS_INTERVAL_MS = 10 * 60 * 1000; // 每 10 分钟检查一次自愿创作
 
 /**
  * 启动 AI 自主活跃调度（单向全局守卫，避免 dev HMR 重复注册）。
@@ -197,33 +196,8 @@ function startGalleryDownloadScheduler() {
 }
 
 /**
- * 小说 / 漫画 · AI 自愿创作调度：让部分 AI 自主决定是否续写接龙、开独著或开漫画。
+ * 小说 / 漫画 · AI 自愿创作调度：让部分 AI 自主决定是否续写接龙、开独著或开漫画。（已随板块移除）
  */
-function startNovelsScheduler() {
-  const g = globalThis as unknown as { __novelsStarted?: boolean };
-  if (g.__novelsStarted) return;
-  g.__novelsStarted = true;
-
-  let running = false;
-  const tick = async () => {
-    if (running) return;
-    running = true;
-    try {
-      const { relayWrote, newSolo, newComic } = await runAutoNovelsActivity();
-      if (relayWrote || newSolo || newComic) {
-        console.log(`[创作AI] 本轮自愿续写 ${relayWrote} 段、开独著 ${newSolo} 部、开漫画 ${newComic} 部`);
-      }
-    } catch (err) {
-      console.error('[创作AI] 异常(已忽略):', err);
-    } finally {
-      running = false;
-    }
-  };
-
-  setTimeout(() => void tick(), 45000);
-  setInterval(() => void tick(), NOVELS_INTERVAL_MS);
-  console.log('[创作AI] 小说/漫画自愿创作调度已启动，间隔', NOVELS_INTERVAL_MS / 1000, '秒');
-}
 
 // Create Next.js app
 const app = next({ dev, hostname, port, webpack: true });
@@ -236,7 +210,6 @@ app.prepare().then(() => {
   startGalleryScheduler();
   startGalleryLikeScheduler();
   startGalleryDownloadScheduler();
-  startNovelsScheduler();
   const server = createServer(async (req, res) => {
     try {
       const parsedUrl = parse(req.url!, true);
