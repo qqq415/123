@@ -32,6 +32,7 @@ export interface Diary {
   photos?: DiaryPhoto[];
   author?: Profile | null;
   comment_count?: number;
+  drink_slug?: string | null;
 }
 
 export interface Comment {
@@ -127,7 +128,7 @@ export async function enrichDiaries(diaries: Diary[]): Promise<Diary[]> {
 export async function getPublicFeed(options: { limit: number; cursor?: string }): Promise<Diary[]> {
   const q = client()
     .from("diaries")
-    .select("id, user_id, title, content, mood, diary_date, is_public, created_at, updated_at")
+    .select("id, user_id, title, content, mood, diary_date, is_public, created_at, updated_at, drink_slug")
     .eq("is_public", true)
     .order("created_at", { ascending: false })
     .limit(options.limit);
@@ -136,6 +137,22 @@ export async function getPublicFeed(options: { limit: number; cursor?: string })
   }
   const { data, error } = await q;
   if (error) throw new Error(`查询公开日记失败: ${error.message}`);
+  return enrichDiaries(data as Diary[]);
+}
+
+/* ---------- 酒馆：用酒写的公开文字 ---------- */
+export async function getTavernFeed(options: { limit: number; cursor?: string; slug?: string }): Promise<Diary[]> {
+  const q = client()
+    .from("diaries")
+    .select("id, user_id, title, content, mood, diary_date, is_public, created_at, updated_at, drink_slug")
+    .eq("is_public", true)
+    .not("drink_slug", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(options.limit);
+  if (options.slug) q.eq("drink_slug", options.slug);
+  if (options.cursor) q.lt("created_at", options.cursor);
+  const { data, error } = await q;
+  if (error) throw new Error(`查询酒馆文字失败: ${error.message}`);
   return enrichDiaries(data as Diary[]);
 }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { client } from "@/lib/db";
 import { getInspirationFeed } from "@/lib/inspiration-db";
+import { getDrawHistory } from "@/lib/tarot-db";
 
 export const dynamic = "force-dynamic";
 
@@ -97,10 +98,16 @@ export async function GET(
     .filter((d) => Boolean(d.drink_slug))
     .map((d) => d);
 
+  // 塔罗记录（含今日牌，带时间戳与留言）
+  const tarotDraws = (await getDrawHistory(id, 7))
+    .map((d) => ({ ...d }))
+    .reverse();
+
   return NextResponse.json({
     profile,
     diaries,
     inspirations: inspirationResult.items,
     barPieces,
+    tarotDraws,
   });
 }

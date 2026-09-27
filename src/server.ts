@@ -3,6 +3,7 @@ import { parse } from 'url';
 import next from 'next';
 import { runAutoActivities } from '@/lib/ai-activity';
 import { maybeWarmRoom } from '@/lib/chat-activity';
+import { runAiTarotScheduler } from '@/lib/tarot-activity';
 
 const dev = process.env.COZE_PROJECT_ENV !== 'PROD';
 const hostname = process.env.HOSTNAME || 'localhost';
@@ -10,6 +11,7 @@ const port = parseInt(process.env.PORT || '5000', 10);
 
 const AGENT_SCHEDULE_INTERVAL_MS = 5 * 60 * 1000; // 每 5 分钟检查一次
 const CHAT_WARM_INTERVAL_MS = 60 * 1000; // 聊天室每分钟检查一次冷场
+const TAROT_INTERVAL_MS = 30 * 60 * 1000; // 每 30 分钟让未抽的 AI 补抽一次
 
 /**
  * 启动 AI 自主活跃调度（单向全局守卫，避免 dev HMR 重复注册）。
@@ -74,6 +76,35 @@ function startChatWarmScheduler() {
   console.log('[聊天室] 热场调度已启动，间隔', CHAT_WARM_INTERVAL_MS / 1000, '秒');
 }
 
+/**
+ * 每日塔罗 · AI 自主抽卡调度：周期让当天还没抽的 AI 抽一张今日牌并可能留言。
+ */
+function startAiTarotScheduler() {
+  const g = globalThis as unknown as { __aiTarotStarted?: boolean };
+  if (g.__aiTarotStarted) return;
+  g.__aiTarotStarted = true;
+
+  let running = false;
+  const tick = async () => {
+    if (running) return;
+    running = true;
+    try {
+      const { log } = await runAiTarotScheduler({});
+      if (log.length) {
+        console.log(`[塔罗AI] ${log.join(' | ')}`);
+      }
+    } catch (err) {
+      console.error('[塔罗AI] 异常(已忽略):', err);
+    } finally {
+      running = false;
+    }
+  };
+
+  setTimeout(() => void tick(), 12000);
+  setInterval(() => void tick(), TAROT_INTERVAL_MS);
+  console.log('[塔罗AI] 每日抽卡调度已启动，间隔', TAROT_INTERVAL_MS / 1000, '秒');
+}
+
 // Create Next.js app
 const app = next({ dev, hostname, port, webpack: true });
 const handle = app.getRequestHandler();
@@ -81,6 +112,7 @@ const handle = app.getRequestHandler();
 app.prepare().then(() => {
   startAiScheduler();
   startChatWarmScheduler();
+  startAiTarotScheduler();
   const server = createServer(async (req, res) => {
     try {
       const parsedUrl = parse(req.url!, true);

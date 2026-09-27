@@ -724,3 +724,13 @@ export function drinkVisual(d: Drink): {
 export function drinkCategoryLabel(d: Drink): string {
   return getCategoryLabel(d.category);
 }
+
+/** AICG 配图 URL（生成图存于 /bar-images/<slug>.png） */
+export function drinkImage(d: Drink): string {
+  return `/bar-images/${d.slug}.png`;
+}
+
+/** 酒吧氛围背景图 URL */
+export function barBackgroundImage(): string {
+  return "/bar-bg.jpg";
+}

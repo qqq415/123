@@ -18,6 +18,7 @@ import {
 } from "@/lib/session-context";
 import { formatDateTime, formatDate, initialOf, stripHtml } from "@/lib/format";
 import { getDrink } from "@/lib/drinks";
+import { tarotCardSymbol, type TarotCard } from "@/lib/tarot";
 
 interface DiaryLite {
   id: string;
@@ -46,11 +47,30 @@ interface ProfileData {
   ai_slug?: string | null;
 }
 
+interface TarotDrawLite {
+  id: string;
+  user_id: string;
+  card_id: number;
+  draw_date: string;
+  keyword: string;
+  comment: string | null;
+  created_at: string;
+  card?: TarotCard;
+}
+
+const SUIT_CN: Record<string, string> = {
+  wands: "权杖",
+  cups: "圣杯",
+  swords: "宝剑",
+  pentacles: "星币",
+};
+
 interface UserPageResponse {
   profile: ProfileData & { ai_slug?: string };
   diaries: DiaryLite[];
   inspirations: InspirationLite[];
   barPieces: DiaryLite[];
+  tarotDraws?: TarotDrawLite[];
 }
 
 const EMOJI_CHOICES = [
@@ -319,6 +339,7 @@ export function ProfileClient({ userId }: { userId: string }) {
             公开灵感 ({data.inspirations.length})
           </TabsTrigger>
           <TabsTrigger value="bar">酒馆文字 ({data.barPieces.length})</TabsTrigger>
+          <TabsTrigger value="tarot">塔罗 ({data.tarotDraws?.length ?? 0})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="diaries" className="space-y-3 pt-4">
@@ -380,9 +401,66 @@ export function ProfileClient({ userId }: { userId: string }) {
             })
           )}
         </TabsContent>
+
+        <TabsContent value="tarot" className="space-y-3 pt-4">
+          {!data.tarotDraws || data.tarotDraws.length === 0 ? (
+            <Empty text="还没有抽过每日塔罗" />
+          ) : (
+            data.tarotDraws.map((t) => {
+              const card = t.card;
+              const isToday = t.draw_date === todayString();
+              return (
+                <article
+                  key={t.id}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-sm"
+                >
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--muted-foreground)]">
+                    {isToday ? (
+                      <span className="rounded-full bg-[var(--primary)] px-2 py-0.5 text-[var(--primary-foreground)]">
+                        今日
+                      </span>
+                    ) : null}
+                    <span className="rounded-full bg-[var(--accent)] px-2 py-0.5 text-[var(--accent-foreground)]">
+                      {t.draw_date}
+                    </span>
+                    <span>{formatDateTime(t.created_at)}</span>
+                  </div>
+                  <div className="mt-2 flex items-start gap-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--secondary)] text-2xl">
+                      {card ? tarotCardSymbol(card) : "🂠"}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-serif font-semibold text-[var(--foreground)]">
+                        {card ? card.name : `#${t.card_id}`}
+                        <span className="ml-2 text-xs font-normal text-[var(--muted-foreground)]">
+                          {card ? (card.arcana === "major" ? "大阿卡纳" : (SUIT_CN[card.suit ?? ""] ?? "")) : ""}
+                        </span>
+                      </p>
+                      {t.keyword ? (
+                        <p className="mt-0.5 text-sm text-[var(--primary)]">
+                          日运关键词 · {t.keyword}
+                        </p>
+                      ) : null}
+                      {t.comment ? (
+                        <p className="mt-1 whitespace-pre-wrap break-words rounded-lg bg-[var(--secondary)] px-3 py-2 text-sm leading-relaxed text-[var(--foreground)]">
+                          {t.comment}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                </article>
+              );
+            })
+          )}
+        </TabsContent>
       </Tabs>
     </div>
   );
+}
+
+function todayString(): string {
+  const shifted = new Date(Date.now() + 8 * 60 * 60 * 1000);
+  return shifted.toISOString().slice(0, 10);
 }
 
 function DiaryRow({ diary }: { diary: DiaryLite }) {

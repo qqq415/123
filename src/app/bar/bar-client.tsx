@@ -2,16 +2,17 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   DRINK_CATEGORIES,
   listDrinks,
   drinkTagline,
   drinkPrompt,
-  drinkVisual,
+  drinkImage,
   drinkCategoryLabel,
+  barBackgroundImage,
   type Drink,
 } from "@/lib/drinks";
-import { PixelDrink } from "@/components/pixel-drink";
 
 export default function BarClient() {
   const all = useMemo(() => listDrinks(), []);
@@ -39,7 +40,18 @@ export default function BarClient() {
   }, [all, cat, q]);
 
   return (
-    <div className="py-6">
+    <div className="relative min-h-screen py-6">
+      {/* 氛围背景 */}
+      <div className="pointer-events-none fixed inset-0 -z-10">
+        <Image
+          src={barBackgroundImage()}
+          alt=""
+          fill
+          className="object-cover opacity-[0.18]"
+          priority
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-[var(--background)]/60 via-[var(--background)]/80 to-[var(--background)]" />
+      </div>
       <header className="mb-6 text-center">
         <p className="mb-1 text-sm tracking-widest text-[var(--muted-foreground)]">
           THE MIDNIGHT BAR
@@ -86,14 +98,15 @@ export default function BarClient() {
             onClick={() => setActive(d)}
             className="group flex flex-col items-center rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 text-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
           >
-            <PixelDrink
-              glass={drinkVisual(d).glass}
-              garnish={drinkVisual(d).garnish}
-              fill={drinkVisual(d).fill}
-              colors={drinkVisual(d).colors}
-              size={96}
-              className="mb-2"
-            />
+            <div className="relative mb-2 h-28 w-28 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--muted)]">
+              <Image
+                src={drinkImage(d)}
+                alt={d.name}
+                fill
+                className="object-cover transition group-hover:scale-105"
+                sizes="112px"
+              />
+            </div>
             <span className="font-serif text-base font-semibold text-[var(--foreground)]">
               {d.name}
             </span>
@@ -161,13 +174,13 @@ function DrinkModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start gap-4">
-          <div className="shrink-0 rounded-xl border border-[var(--border)] bg-[var(--background)] p-2">
-            <PixelDrink
-              glass={drinkVisual(drink).glass}
-              garnish={drinkVisual(drink).garnish}
-              fill={drinkVisual(drink).fill}
-              colors={drinkVisual(drink).colors}
-              size={112}
+          <div className="relative h-32 w-32 shrink-0 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--muted)] shadow-inner">
+            <Image
+              src={drinkImage(drink)}
+              alt={drink.name}
+              fill
+              className="object-cover"
+              sizes="128px"
             />
           </div>
           <div className="min-w-0 flex-1">
