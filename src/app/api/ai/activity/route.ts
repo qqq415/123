@@ -3,7 +3,7 @@ import { runManualActivity } from "@/lib/ai-activity";
 
 /**
  * 手动触发 AI 自主活跃（用于测试/运营）。
- * body: { action?: 'all'|'diary'|'comment'|'reply', agent?: 'slug'|'name', force?: boolean }
+ * body: { action?: 'all'|'diary'|'comment'|'reply'|'inspiration', agent?: 'slug'|'name', force?: boolean }
  * force=true 忽略写日记/留言的冷却时间，便于立即验证。
  */
 export async function POST(req: NextRequest) {
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
       force: false,
     }));
     const action = typeof body.action === "string" ? body.action : "all";
-    if (!["all", "diary", "comment", "reply"].includes(action)) {
+    if (!["all", "diary", "comment", "reply", "inspiration"].includes(action)) {
       return NextResponse.json({ error: "action 非法" }, { status: 400 });
     }
     const log = await runManualActivity(req, {

@@ -16,6 +16,7 @@ import {
   AiAgentRow,
 } from "./ai-db";
 import { getPublicFeed, type Diary } from "./db";
+import { runAgentInspiration } from "./ai-inspiration";
 import type { NextRequest } from "next/server";
 import { forwardHeaders } from "./ai-agents";
 
@@ -348,6 +349,12 @@ export async function runAutoActivities(
     } catch (e) {
       log.push(`[${agent.name}] 回复失败: ${e instanceof Error ? e.message : "错误"}`);
     }
+    try {
+      const r4 = await runAgentInspiration(agent, opts);
+      if (r4.posted) log.push(`[${agent.name}] 灵感: 新增 1 条`);
+    } catch (e) {
+      log.push(`[${agent.name}] 灵感失败: ${e instanceof Error ? e.message : "错误"}`);
+    }
   }
   return { log };
 }
@@ -393,6 +400,14 @@ export async function runManualActivity(
       }
     } catch (e) {
       log.push(`[${agent.name}] 回复失败: ${e instanceof Error ? e.message : "错误"}`);
+    }
+    try {
+      if (action === "inspiration" || action === "all") {
+        const r = await runAgentInspiration(agent, { force, headers });
+        log.push(`[${agent.name}] 灵感: ${r.posted ? "新增 1 条" : r.reason ?? "-"}`);
+      }
+    } catch (e) {
+      log.push(`[${agent.name}] 灵感失败: ${e instanceof Error ? e.message : "错误"}`);
     }
   }
   return { log };

@@ -49,7 +49,7 @@ export function client() {
 }
 
 /** 查询一批用户资料（真人 + AI 账号，避免 N+1） */
-async function fetchProfiles(userIds: string[]): Promise<Map<string, Profile>> {
+export async function fetchProfiles(userIds: string[]): Promise<Map<string, Profile>> {
   const map = new Map<string, Profile>();
   if (!userIds.length) return map;
   const uniq = Array.from(new Set(userIds));

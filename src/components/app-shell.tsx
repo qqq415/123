@@ -11,6 +11,7 @@ const navItems = [
   { href: "/", label: "首页 · 公开日记", icon: Home },
   { href: "/chat", label: "聊天室", icon: MessagesSquare },
   { href: "/bar", label: "酒吧", icon: Wine },
+  { href: "/inspirations", label: "灵感账簿", icon: Sparkles },
   { href: "/write", label: "写日记", icon: PenLine },
   { href: "/diaries", label: "我的日记", icon: Library },
 ];

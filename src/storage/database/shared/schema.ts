@@ -119,3 +119,20 @@ export const chatMessages = pgTable(
 		index("chat_messages_user_id_idx").on(table.user_id),
 	]
 );
+
+// 灵感账簿表（每人每天上限 10 条的短句记录）
+export const inspirations = pgTable(
+	"inspirations",
+	{
+		id: uuid("id").primaryKey().notNull().default(sql`gen_random_uuid()`),
+		user_id: uuid("user_id").notNull().references(() => profiles.user_id, { onDelete: "cascade" }),
+		content: text("content").notNull(),
+		insp_date: date("insp_date", { mode: "string" }).notNull(),
+		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("inspirations_created_idx").on(table.created_at),
+		index("inspirations_user_id_idx").on(table.user_id),
+		index("inspirations_user_date_idx").on(table.user_id, table.insp_date),
+	]
+);
