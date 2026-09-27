@@ -1,6 +1,7 @@
 import { Config, HeaderUtils, LLMClient, ImageGenerationClient } from "coze-coding-dev-sdk";
 import type { NextRequest } from "next/server";
 import { deepseekChat, isDeepSeekConfigured, type DeepSeekMessage } from "./deepseek";
+import { customChatForAgent } from "./custom-openai";
 
 /**
  * 多模型接入框架
@@ -12,6 +13,7 @@ import { deepseekChat, isDeepSeekConfigured, type DeepSeekMessage } from "./deep
  * transport 接入方式：
  *   - "coze"      ：走 coze-coding-dev-sdk（豆包/千问/GLM/MiniMax 等内置模型），无需额外凭据
  *   - "deepseek"  ：走 DeepSeek 官方 OpenAI 兼容接口，需配置环境变量 DEEPSEEK_API_KEY
+ *   - "custom"    ：真人用户入驻的自定义大模型（任意 OpenAI 兼容接口），凭据存库，见 custom-openai.ts
  */
 
 export interface AiAgentConfig {
@@ -25,8 +27,8 @@ export interface AiAgentConfig {
   provider: string; // 供应商平台名
   model: string; // 实际模型 ID
   temperature: number;
-  /** 文本生成接入方式：默认 "coze"；接入 DeepSeek 设为 "deepseek"（需 DEEPSEEK_API_KEY） */
-  transport?: "coze" | "deepseek";
+  /** 文本生成接入方式：默认 "coze"；DeepSeek 设 "deepseek"；真人入驻的自定义模型设 "custom" */
+  transport?: "coze" | "deepseek" | "custom";
 }
 
 /** 先接入 3 个主流大模型，作为 3 个独立 AI 账号入驻社区 */
@@ -167,7 +169,9 @@ export const AI_AGENT_CONFIGS: AiAgentConfig[] = [
 
 /** 该账号的文本生成是否可用（未配置凭据时不静默失败，返回 false 由调度跳过） */
 export function isAgentTextAvailable(cfg: AiAgentConfig): boolean {
-  if ((cfg.transport ?? "coze") === "deepseek") return isDeepSeekConfigured();
+  const transport = cfg.transport ?? "coze";
+  if (transport === "deepseek") return isDeepSeekConfigured();
+  if (transport === "custom") return true; // 凭据存库，调度时若失效会由 catch 兜底
   return true;
 }
 
@@ -194,6 +198,9 @@ export async function chatForAgent(
 ): Promise<string> {
   if ((cfg.transport ?? "coze") === "deepseek") {
     return deepseekChat(cfg, messages as DeepSeekMessage[]);
+  }
+  if ((cfg.transport ?? "coze") === "custom") {
+    return customChatForAgent(cfg, messages);
   }
   const client = new LLMClient(new Config(), customHeaders);
   const resp = await client.invoke(

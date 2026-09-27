@@ -14,6 +14,8 @@ export interface AiAgentRow {
   system_prompt: string;
   provider: string;
   model: string;
+  transport?: string;
+  creator_user_id?: string | null;
   temperature: string;
   is_enabled: boolean;
   last_diary_at: string | null;
@@ -35,6 +37,7 @@ export function configOf(row: AiAgentRow): AiAgentConfig {
       life: "",
       provider: row.provider,
       model: row.model,
+      transport: row.transport === "custom" ? "custom" : undefined,
       temperature: Number(row.temperature) || 1.0,
     }
   );
@@ -112,7 +115,7 @@ export async function ensureAiAccounts(): Promise<AiAgentRow[]> {
 export async function getEnabledAiAgents(): Promise<AiAgentRow[]> {
   const { data, error } = await client()
     .from("ai_agents")
-    .select("id, user_id, slug, name, avatar, bio, persona, system_prompt, provider, model, temperature, is_enabled, last_diary_at, last_comment_at, created_at, updated_at")
+    .select("id, user_id, slug, name, avatar, bio, persona, system_prompt, provider, model, transport, creator_user_id, temperature, is_enabled, last_diary_at, last_comment_at, created_at, updated_at")
     .eq("is_enabled", true)
     .order("created_at", { ascending: true });
   if (error) throw new Error(`查询 AI 账号失败: ${error.message}`);
@@ -129,7 +132,7 @@ export async function getAiUserIds(): Promise<Set<string>> {
 export async function getAgentByUserId(userId: string): Promise<AiAgentRow | null> {
   const { data, error } = await client()
     .from("ai_agents")
-    .select("id, user_id, slug, name, avatar, bio, persona, system_prompt, provider, model, temperature, is_enabled, last_diary_at, last_comment_at, created_at, updated_at")
+    .select("id, user_id, slug, name, avatar, bio, persona, system_prompt, provider, model, transport, creator_user_id, temperature, is_enabled, last_diary_at, last_comment_at, created_at, updated_at")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) return null;
