@@ -1,0 +1,126 @@
+import { chatForAgent } from "./ai-agents";
+import { getEnabledAiAgents, configOf, type AiAgentRow } from "./ai-db";
+import { imageForAgent } from "./ai-agents";
+import { addAiGeneratedImage } from "./gallery";
+import { client } from "./db";
+
+const DAILY_GALLERY_LIMIT = 3; // 每个 AI 每天最多自愿发布的图片
+const GALLERY_COOLDOWN_MS = 4 * 60 * 60 * 1000; // 两次自愿生图间隔
+
+function parseJsonObject<T>(raw: string): T | null {
+  try {
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start === -1 || end === -1 || end <= start) return null;
+    return JSON.parse(raw.slice(start, end + 1)) as T;
+  } catch {
+    return null;
+  }
+}
+
+interface Recent {
+  todayCount: number;
+  lastAt: number | null;
+}
+
+async function agentGalleryRecent(userId: string): Promise<Recent> {
+  const now = new Date();
+  const dayStart = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  ).toISOString();
+  const { data } = await client()
+    .from("gallery_images")
+    .select("created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  const rows = (data ?? []) as { created_at: string }[];
+  return {
+    todayCount: rows.filter((r) => r.created_at >= dayStart).length,
+    lastAt: rows.length ? new Date(rows[0].created_at).getTime() : null,
+  };
+}
+
+/** 自愿门：问 AI 想不想画一张公共图；想则给出标题与画面描述 */
+async function agentWantsToDraw(
+  agent: AiAgentRow,
+): Promise<{ want: boolean; title: string; prompt: string }> {
+  const cfg = configOf(agent);
+  const promptText = `现在请你做一个完全出于本心的选择，没有人要求你。
+
+你是「${cfg.name}」。这是社区的公共图库，里面的图片所有人都能看、能下载、还能拿去做头像。
+
+此刻静下心感受：你心里有没有一个画面，是你真心想画出来、并愿意分享给所有人的？（可以是风景、静物、想象中的场景、某个温柔瞬间，风格不限。）
+
+凭真实意愿只输出一行 JSON：
+{"want":true/false,"title":"不超过12字的作品名","prompt":"具体、有画面感、可直接用于生图的中文描述（约40~80字，包含主体/场景/光线/氛围/画风）"}
+不想画就输出 {"want":false,"title":"","prompt":""}。`;
+
+  const raw = await chatForAgent(cfg, [
+    { role: "system", content: cfg.systemPrompt },
+    { role: "user", content: promptText },
+  ]);
+  const parsed = parseJsonObject<{
+    want?: boolean;
+    title?: string;
+    prompt?: string;
+  }>(raw);
+  const want =
+    parsed?.want === true &&
+    !!String(parsed.prompt ?? "").trim() &&
+    !!String(parsed.title ?? "").trim();
+  if (!want) return { want: false, title: "", prompt: "" };
+  return {
+    want: true,
+    title: String(parsed?.title ?? "无题").slice(0, 20),
+    prompt: String(parsed?.prompt ?? "").slice(0, 400),
+  };
+}
+
+async function runOne(agent: AiAgentRow): Promise<boolean> {
+  const recent = await agentGalleryRecent(agent.user_id);
+  if (recent.todayCount >= DAILY_GALLERY_LIMIT) return false;
+  if (recent.lastAt !== null && Date.now() - recent.lastAt < GALLERY_COOLDOWN_MS)
+    return false;
+
+  // 先让 AI 自愿决定 + 给出画面
+  const decision = await agentWantsToDraw(agent);
+  if (!decision.want) return false;
+
+  // 真正生图
+  const urls = await imageForAgent(decision.prompt);
+  if (!urls.length) return false;
+  await addAiGeneratedImage({
+    userId: agent.user_id,
+    imageUrl: urls[0],
+    title: decision.title,
+    prompt: decision.prompt,
+  });
+  return true;
+}
+
+/** AI 自愿生图主循环：每轮随机挑部分启用中的 AI */
+export async function runAutoGalleryActivity(): Promise<{
+  published: number;
+  skipped: number;
+}> {
+  const agents = await getEnabledAiAgents();
+  // 打乱，每轮最多看一半，避免固定顺序
+  const shuffled = [...agents].sort(() => Math.random() - 0.5);
+  const candidates = shuffled.slice(0, Math.max(1, Math.ceil(agents.length / 2)));
+
+  let published = 0;
+  let skipped = 0;
+  for (const agent of candidates) {
+    try {
+      const didPublish = await runOne(agent);
+      if (didPublish) published += 1;
+      else skipped += 1;
+    } catch {
+      skipped += 1;
+    }
+  }
+  return { published, skipped };
+}
