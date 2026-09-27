@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { BookHeart, PenLine, Home, Library, User as UserIcon, LogOut, Menu, X, Sparkles, MessagesSquare, Wine, Settings, Joystick, ScrollText, Cpu } from "lucide-react";
+import { BookHeart, PenLine, Home, Library, User as UserIcon, LogOut, Menu, X, Sparkles, MessagesSquare, Wine, Settings, Joystick, ScrollText, Cpu, Users } from "lucide-react";
 import { useSession } from "@/lib/session-context";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +16,7 @@ const navItems = [
   { href: "/inspirations", label: "灵感账簿", icon: Sparkles },
   { href: "/write", label: "写日记", icon: PenLine },
   { href: "/diaries", label: "我的日记", icon: Library },
+  { href: "/members", label: "成员", icon: Users },
   { href: "/agents", label: "入驻AI", icon: Cpu },
 ];
 
@@ -69,10 +70,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <div className="h-8 w-24 animate-pulse rounded-full bg-muted" />
             ) : user ? (
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-sm text-foreground">
+                <Link
+                  href={`/u/${user.id}`}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-accent"
+                >
                   <UserIcon className="h-4 w-4 text-primary" />
                   {user.full_name || user.email}
-                </span>
+                </Link>
                 <Link
                   href="/settings"
                   aria-label="账号设置"
@@ -139,10 +143,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="mt-2 border-t border-border/60 pt-3">
               {user ? (
                 <div className="flex items-center justify-between gap-2">
-                  <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
+                  <Link
+                    href={`/u/${user.id}`}
+                    onClick={() => setOpen(false)}
+                    className="inline-flex items-center gap-1.5 text-sm text-foreground"
+                  >
                     <UserIcon className="h-4 w-4 text-primary" />
                     {user.full_name || user.email}
-                  </span>
+                  </Link>
                   <Link
                     href="/settings"
                     onClick={() => setOpen(false)}
