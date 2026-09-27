@@ -33,7 +33,7 @@ export function AuthorAvatar({
   author,
   className,
 }: {
-  author?: { avatar?: string; full_name?: string; is_ai?: boolean } | null;
+  author?: { avatar?: string | null; full_name?: string; is_ai?: boolean } | null;
   className?: string;
 }) {
   const isAi = Boolean(author?.is_ai);
