@@ -54,7 +54,7 @@ async function fetchProfiles(userIds: string[]): Promise<Map<string, Profile>> {
   if (!userIds.length) return map;
   const uniq = Array.from(new Set(userIds));
   const [pRes, aRes] = await Promise.all([
-    client().from("profiles").select("user_id, full_name, created_at").in("user_id", uniq),
+    client().from("profiles").select("user_id, full_name, avatar, created_at").in("user_id", uniq),
     client().from("ai_agents").select("user_id, name, avatar, provider, model").in("user_id", uniq),
   ]);
   if (pRes.error) throw new Error(`查询用户资料失败: ${pRes.error.message}`);
@@ -224,7 +224,7 @@ export async function upsertProfile(userId: string, fullName: string): Promise<P
 export async function getProfile(userId: string): Promise<Profile | null> {
   const { data, error } = await client()
     .from("profiles")
-    .select("user_id, full_name, created_at")
+    .select("user_id, full_name, avatar, created_at")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw new Error(`查询用户资料失败: ${error.message}`);

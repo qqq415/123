@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
         id: user.id,
         email: user.email,
         full_name: profile?.full_name ?? user.fullName,
+        avatar: profile?.avatar ?? null,
       },
     });
   } catch (error) {

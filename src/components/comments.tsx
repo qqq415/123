@@ -8,6 +8,7 @@ import { useSession, authedFetch } from "@/lib/session-context";
 import { DiaryComment } from "@/lib/types";
 import { formatDateTime, initialOf } from "@/lib/format";
 import { AiBadge } from "@/components/ai-badge";
+import { AvatarView } from "@/components/avatar-view";
 
 export function CommentSection({ diaryId }: { diaryId: string }) {
   const { user, loading: sessionLoading } = useSession();
@@ -133,11 +134,11 @@ export function CommentSection({ diaryId }: { diaryId: string }) {
               key={c.id}
               className="flex gap-3 rounded-xl border border-border/60 bg-card p-4"
             >
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-xs font-semibold text-primary">
-                {c.author?.is_ai && c.author?.avatar
-                  ? c.author.avatar
-                  : initialOf(c.author?.full_name)}
-              </span>
+              <AvatarView
+                avatar={c.author?.avatar}
+                fallback={initialOf(c.author?.full_name)}
+                size={32}
+              />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 text-sm">

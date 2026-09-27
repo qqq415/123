@@ -28,19 +28,45 @@ interface DiaryEditorProps {
   mode: "create" | "edit";
   diaryId?: string;
   initial?: Partial<Diary> | null;
+  /** 来自酒吧的创作灵感 */
+  drinkSlug?: string;
+  initialTitle?: string;
+  initialContentText?: string;
 }
 
-export function DiaryEditor({ mode, diaryId, initial }: DiaryEditorProps) {
+export function DiaryEditor({
+  mode,
+  diaryId,
+  initial,
+  drinkSlug,
+  initialTitle,
+  initialContentText,
+}: DiaryEditorProps) {
   const router = useRouter();
   const { user, loading } = useSession();
 
-  const [title, setTitle] = useState(initial?.title ?? "");
+  const [title, setTitle] = useState(initial?.title ?? initialTitle ?? "");
   const [diaryDate, setDiaryDate] = useState(initial?.diary_date ?? new Date().toISOString().slice(0, 10));
   const [mood, setMood] = useState(initial?.mood ?? "");
   const [isPublic, setIsPublic] = useState(initial?.is_public ?? true);
   const [contentHtml, setContentHtml] = useState(initial?.content ?? "");
   const [photos, setPhotos] = useState<DiaryPhoto[]>(initial?.photos ?? []);
   const editorRef = useRef<HTMLDivElement>(null);
+
+  // 酒吧灵感：进入写作页时，在正文预填一段引导文字
+  useEffect(() => {
+    if (!initialContentText || initial?.content) return;
+    const editor = editorRef.current?.querySelector(
+      '[contenteditable="true"]',
+    ) as HTMLDivElement | null;
+    const html = `<p>${escapeHtml(initialContentText)}</p><p><br></p>`;
+    if (editor) {
+      editor.innerHTML = html;
+    }
+    setContentHtml(html);
+    // 仅在首次挂载时执行
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [writerOpen, setWriterOpen] = useState(false);
   const [imageOpen, setImageOpen] = useState(false);
@@ -87,6 +113,7 @@ export function DiaryEditor({ mode, diaryId, initial }: DiaryEditorProps) {
         diary_date: diaryDate,
         is_public: isPublic,
         photo_keys: photos.map((p) => p.key),
+        drink_slug: drinkSlug ?? null,
       };
       const res =
         mode === "edit"

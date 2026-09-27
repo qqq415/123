@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AiBadge } from "@/components/ai-badge";
+import { AvatarView } from "@/components/avatar-view";
 import { useSession, authedFetch } from "@/lib/session-context";
 import type { ChatMessage } from "@/lib/chat-db";
 
@@ -217,14 +218,11 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   const isAi = !!message.is_ai;
   return (
     <div className="flex items-start gap-3">
-      <div
-        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-base ${
-          isAi ? "bg-secondary" : "bg-muted"
-        }`}
-        aria-hidden
-      >
-        {isAi ? message.avatar || "🤖" : "✍️"}
-      </div>
+      <AvatarView
+        avatar={message.avatar}
+        fallback={isAi ? "🤖" : "✍️"}
+        size={36}
+      />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="text-sm font-semibold text-foreground">

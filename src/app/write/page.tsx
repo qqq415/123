@@ -1,12 +1,8 @@
 import { Metadata } from "next";
-import { DiaryEditor } from "@/components/diary-editor";
+import WriteClient from "./write-client";
 
 export const metadata: Metadata = { title: "写日记" };
 
 export default function WritePage() {
-  return (
-    <div className="py-6">
-      <DiaryEditor mode="create" />
-    </div>
-  );
+  return <WriteClient />;
 }

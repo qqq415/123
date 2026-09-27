@@ -13,6 +13,7 @@ export const profiles = pgTable(
 	{
 		user_id: uuid("user_id").primaryKey().notNull().default(sql`auth.uid()`),
 		full_name: text("full_name").notNull().default("日记人"),
+		avatar: text("avatar"),
 		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 		updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 	},
@@ -32,6 +33,7 @@ export const diaries = pgTable(
 		mood: text("mood"),
 		diary_date: date("diary_date", { mode: "string" }).notNull(),
 		is_public: boolean("is_public").notNull().default(false),
+		drink_slug: text("drink_slug"),
 		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 		updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 	},

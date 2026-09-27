@@ -26,6 +26,7 @@ export interface Diary {
   author?: Author | null;
   photos?: DiaryPhoto[];
   comment_count?: number;
+  drink_slug?: string | null;
 }
 
 export interface DiaryComment {

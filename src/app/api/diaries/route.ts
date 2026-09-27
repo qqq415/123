@@ -61,6 +61,7 @@ export async function POST(req: NextRequest) {
         mood,
         diary_date: diaryDate,
         is_public: isPublic,
+        drink_slug: typeof body?.drink_slug === "string" ? body.drink_slug : null,
       })
       .select("id, user_id, title, content, mood, diary_date, is_public, created_at, updated_at")
       .single();

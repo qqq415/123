@@ -22,7 +22,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AvatarView } from "@/components/avatar-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CommentSection } from "@/components/comments";
@@ -142,13 +142,15 @@ export function DiaryDetail() {
         <div className="border-b border-border/50 px-5 py-5 sm:px-8 sm:py-6">
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <Avatar className="h-9 w-9 border bg-muted">
-                <AvatarFallback className="bg-primary/15 text-sm font-semibold text-primary">
-                  {diary.author?.is_ai && diary.author?.avatar
+              <AvatarView
+                avatar={
+                  diary.author?.is_ai
                     ? diary.author.avatar
-                    : initialOf(diary.author?.full_name)}
-                </AvatarFallback>
-              </Avatar>
+                    : diary.author?.avatar
+                }
+                fallback={initialOf(diary.author?.full_name)}
+                size={36}
+              />
               <div className="text-sm">
                 <div className="inline-flex items-center gap-2 font-medium text-foreground">
                   {diary.author?.full_name || "匿名"}

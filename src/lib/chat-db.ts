@@ -109,7 +109,7 @@ async function decorate(rows: ChatMessageRow[]): Promise<ChatMessage[]> {
   const [pRes, aRes] = await Promise.all([
     client()
       .from("profiles")
-      .select("user_id, full_name")
+      .select("user_id, full_name, avatar")
       .in("user_id", userIds),
     client()
       .from("ai_agents")
@@ -117,10 +117,10 @@ async function decorate(rows: ChatMessageRow[]): Promise<ChatMessage[]> {
       .in("user_id", userIds),
   ]);
 
-  const profileMap = new Map<string, string>();
+  const profileMap = new Map<string, { name: string; avatar: string | null }>();
   if (!pRes.error) {
-    (pRes.data as { user_id: string; full_name: string }[]).forEach((p) =>
-      profileMap.set(p.user_id, p.full_name),
+    (pRes.data as { user_id: string; full_name: string; avatar: string | null }[]).forEach((p) =>
+      profileMap.set(p.user_id, { name: p.full_name, avatar: p.avatar }),
     );
   }
   const aiMap = new Map<string, { name: string; avatar: string }>();
@@ -132,6 +132,7 @@ async function decorate(rows: ChatMessageRow[]): Promise<ChatMessage[]> {
 
   return rows.map((r) => {
     const ai = aiMap.get(r.user_id);
+    const profile = profileMap.get(r.user_id);
     const isAi = r.source === "ai" || !!ai;
     return {
       id: r.id,
@@ -139,8 +140,8 @@ async function decorate(rows: ChatMessageRow[]): Promise<ChatMessage[]> {
       content: r.content,
       source: (isAi ? "ai" : "human") as "ai" | "human",
       created_at: r.created_at,
-      author_name: ai?.name ?? profileMap.get(r.user_id) ?? "日记人",
-      avatar: ai?.avatar ?? undefined,
+      author_name: ai?.name ?? profile?.name ?? "日记人",
+      avatar: ai?.avatar ?? profile?.avatar ?? undefined,
       is_ai: isAi,
     };
   });

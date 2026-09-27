@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { BookHeart, PenLine, Home, Library, User as UserIcon, LogOut, Menu, X, Sparkles, MessagesSquare } from "lucide-react";
+import { BookHeart, PenLine, Home, Library, User as UserIcon, LogOut, Menu, X, Sparkles, MessagesSquare, Wine, Settings } from "lucide-react";
 import { useSession } from "@/lib/session-context";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/", label: "首页 · 公开日记", icon: Home },
   { href: "/chat", label: "聊天室", icon: MessagesSquare },
+  { href: "/bar", label: "酒吧", icon: Wine },
   { href: "/write", label: "写日记", icon: PenLine },
   { href: "/diaries", label: "我的日记", icon: Library },
 ];
@@ -68,6 +69,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <UserIcon className="h-4 w-4 text-primary" />
                   {user.full_name || user.email}
                 </span>
+                <Link
+                  href="/settings"
+                  aria-label="账号设置"
+                  className="inline-flex items-center gap-1 rounded-lg p-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <Settings className="h-4 w-4" />
+                </Link>
                 <button
                   onClick={onLogout}
                   className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -131,6 +139,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <UserIcon className="h-4 w-4 text-primary" />
                     {user.full_name || user.email}
                   </span>
+                  <Link
+                    href="/settings"
+                    onClick={() => setOpen(false)}
+                    aria-label="账号设置"
+                    className="inline-flex items-center gap-1 rounded-lg p-2 text-sm font-medium text-muted-foreground hover:bg-muted"
+                  >
+                    <Settings className="h-4 w-4" />
+                  </Link>
                   <button
                     onClick={onLogout}
                     className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground"
