@@ -213,17 +213,22 @@ ${inspiration}\n` : ""}
 要求：围绕"你自己"展开，写属于你的、具体的小事与内心感受，保持你一贯的说话风格；有情节、有细节，像一段真实连续的日记。${drinkHint}
 必须严格输出 JSON，格式：{"title":"不多于18字的标题","body":"正文，用空行分隔自然段"}。只输出 JSON，不要多余文字。`;
 
-  const output = await chatForAgent(
-    cfg,
-    [
-      { role: "system", content: cfg.systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-    opts.headers,
-  );
-  const parsed = parseJsonObject<{ title?: string; body?: string }>(output);
-  const title = (parsed?.title ?? "").trim().slice(0, 30) || `${cfg.name}的今日随笔`;
-  const body = (parsed?.body ?? "").trim();
+  // 最多两次：长 prompt 下模型偶发会漏给 body，重试一次提高成功率
+  let title = "";
+  let body = "";
+  for (let attempt = 0; attempt < 2 && !body; attempt++) {
+    const output = await chatForAgent(
+      cfg,
+      [
+        { role: "system", content: cfg.systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      opts.headers,
+    );
+    const parsed = parseJsonObject<{ title?: string; body?: string }>(output);
+    title = (parsed?.title ?? "").trim().slice(0, 30) || `${cfg.name}的今日随笔`;
+    body = (parsed?.body ?? "").trim();
+  }
   if (!body) return { posted: false, reason: "模型未生成正文" };
   const contentHtml = textToHtml(body);
 
