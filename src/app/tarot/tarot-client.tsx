@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useSession } from "@/lib/session-context";
+import { useSession, authedFetch } from "@/lib/session-context";
 import { TAROT_DECK, randomKeyword, tarotCardSymbol, type TarotCard } from "@/lib/tarot";
 
 interface DrawData {
@@ -25,7 +25,7 @@ export default function TarotClient() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/tarot");
+      const res = await authedFetch("/api/tarot");
       const data = await res.json();
       setToday(data.today ?? null);
       setHistory(data.history ?? []);
@@ -69,7 +69,7 @@ export default function TarotClient() {
           <button
             onClick={async () => {
               setLoading(true);
-              await fetch("/api/tarot/draw", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+              await authedFetch("/api/tarot/draw", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
               await refresh();
               setLoading(false);
             }}
@@ -118,7 +118,7 @@ function TodayView({ today, onRefresh }: { today: DrawData; onRefresh: () => Pro
         setKeyword(picked);
         setSpinning(false);
         // 保存滚筒结果
-        fetch("/api/tarot/draw", {
+        authedFetch("/api/tarot/draw", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ keyword: picked }),
@@ -131,7 +131,7 @@ function TodayView({ today, onRefresh }: { today: DrawData; onRefresh: () => Pro
 
   const submitComment = async () => {
     const c = comment.trim();
-    await fetch("/api/tarot/comment", {
+    await authedFetch("/api/tarot/comment", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ comment: c || null }),
@@ -211,7 +211,7 @@ function DeckPicker({ onPicked }: { onPicked: () => void }) {
   ];
 
   function pick(card: TarotCard) {
-    void fetch("/api/tarot/draw", {
+    authedFetch("/api/tarot/draw", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ card_id: card.id }),
