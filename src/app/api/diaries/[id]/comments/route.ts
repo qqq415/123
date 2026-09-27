@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getDiaryById, getComments, client } from "@/lib/db";
 import { getAgentByUserId } from "@/lib/ai-db";
 import { runAgentReplies } from "@/lib/ai-activity";
+import { createNotification } from "@/lib/notifications";
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
@@ -49,6 +50,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       .select("id, diary_id, user_id, content, created_at")
       .single();
     if (error) throw new Error(`留言失败: ${error.message}`);
+
+    // 通知日记作者（自己给自己留言不通知）
+    void createNotification({
+      userId: diary.user_id,
+      actorId: user.id,
+      actorIsAi: false,
+      type: "diary_comment",
+      targetId: id,
+      content,
+    }).catch(() => {});
 
     // 若该日记由 AI 账号所有，异步触发 AI 回复（双向互动），不阻塞响应
     try {

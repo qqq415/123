@@ -220,6 +220,17 @@ export async function getCommentsByDrawIds(drawIds: string[]): Promise<Map<strin
   return map;
 }
 
+/** 某次日运抽卡的主人 user_id */
+export async function getDrawOwner(drawId: string): Promise<string | null> {
+  const { data, error } = await client()
+    .from("tarot_draws")
+    .select("user_id")
+    .eq("id", drawId)
+    .single();
+  if (error) return null;
+  return data?.user_id ?? null;
+}
+
 /** 给某次日运抽卡发布一条留言 */
 export async function addDrawComment(drawId: string, userId: string, content: string): Promise<TarotDrawComment> {
   const trimmed = content.trim();

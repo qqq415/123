@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { getDrawComments, addDrawComment } from "@/lib/tarot-db";
+import { getDrawComments, addDrawComment, getDrawOwner } from "@/lib/tarot-db";
+import { createNotification } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,17 @@ export async function POST(
   }
   try {
     const comment = await addDrawComment(drawId, user.id, body.content);
+    const ownerId = await getDrawOwner(drawId);
+    if (ownerId) {
+      void createNotification({
+        userId: ownerId,
+        actorId: user.id,
+        actorIsAi: false,
+        type: "tarot_comment",
+        targetId: drawId,
+        content: body.content.trim(),
+      }).catch(() => {});
+    }
     return NextResponse.json({ comment });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });

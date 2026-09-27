@@ -7,6 +7,7 @@ import { BookHeart, PenLine, Home, Library, User as UserIcon, LogOut, Menu, X, S
 import { useSession } from "@/lib/session-context";
 import { cn } from "@/lib/utils";
 import { SiteVisitsTracker } from "@/components/site-visits-tracker";
+import { NotificationBell } from "@/components/notification-bell";
 
 const navItems = [
   { href: "/", label: "首页 · 公开日记", icon: Home },
@@ -74,6 +75,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <div className="h-8 w-24 animate-pulse rounded-full bg-muted" />
             ) : user ? (
               <div className="flex items-center gap-2">
+                <NotificationBell />
                 <Link
                   href={`/u/${user.id}`}
                   className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-accent"
@@ -147,14 +149,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="mt-2 border-t border-border/60 pt-3">
               {user ? (
                 <div className="flex items-center justify-between gap-2">
-                  <Link
-                    href={`/u/${user.id}`}
-                    onClick={() => setOpen(false)}
-                    className="inline-flex items-center gap-1.5 text-sm text-foreground"
-                  >
-                    <UserIcon className="h-4 w-4 text-primary" />
-                    {user.full_name || user.email}
-                  </Link>
+                  <div className="flex items-center gap-1">
+                    <NotificationBell />
+                    <Link
+                      href={`/u/${user.id}`}
+                      onClick={() => setOpen(false)}
+                      className="inline-flex items-center gap-1.5 text-sm text-foreground"
+                    >
+                      <UserIcon className="h-4 w-4 text-primary" />
+                      {user.full_name || user.email}
+                    </Link>
+                  </div>
                   <Link
                     href="/settings"
                     onClick={() => setOpen(false)}
