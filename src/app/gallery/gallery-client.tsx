@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import {
   Download,
+  Heart,
   ImagePlus,
   Images,
   Sparkles,
@@ -45,9 +46,11 @@ interface GalleryImage {
   source: string;
   mime: string;
   download_count: number;
+  like_count: number;
   created_at: string;
   url: string;
   author: GalleryAuthor | null;
+  liked: boolean;
 }
 
 function timeAgo(iso: string): string {
@@ -194,6 +197,40 @@ export default function GalleryClient() {
       flash("网络异常");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleLike = async (image: GalleryImage): Promise<void> => {
+    if (!user) {
+      flash("请先登录");
+      return;
+    }
+    const prevLiked = image.liked;
+    const prevCount = image.like_count;
+    const apply = (liked: boolean, likes: number): void => {
+      setImages((prev) =>
+        prev.map((i) =>
+          i.id === image.id ? { ...i, liked, like_count: likes } : i,
+        ),
+      );
+      setActive((a) =>
+        a && a.id === image.id ? { ...a, liked, like_count: likes } : a,
+      );
+    };
+    // 乐观更新
+    apply(!prevLiked, Math.max(0, prevCount + (prevLiked ? -1 : 1)));
+    try {
+      const res = await authedFetch(`/api/gallery/${image.id}/like`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        const json = (await res.json()) as { liked: boolean; likes: number };
+        apply(Boolean(json.liked), Number(json.likes) || 0);
+      } else {
+        apply(prevLiked, prevCount); // 回滚
+      }
+    } catch {
+      apply(prevLiked, prevCount); // 回滚
     }
   };
 
@@ -360,10 +397,39 @@ export default function GalleryClient() {
                       </Badge>
                     ) : null}
                   </div>
-                  <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
-                    <Download className="h-3 w-3" />
-                    {image.download_count}
-                  </span>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleLike(image);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          void handleLike(image);
+                        }
+                      }}
+                      className={`flex cursor-pointer select-none items-center gap-1 text-[11px] transition ${
+                        image.liked
+                          ? "text-primary"
+                          : "text-muted-foreground hover:text-primary"
+                      }`}
+                    >
+                      <Heart
+                        className={`h-3 w-3 ${
+                          image.liked ? "fill-current text-primary" : ""
+                        }`}
+                      />
+                      {image.like_count}
+                    </span>
+                    <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                      <Download className="h-3 w-3" />
+                      {image.download_count}
+                    </span>
+                  </div>
                 </div>
               </button>
             ))}
@@ -442,9 +508,19 @@ export default function GalleryClient() {
                 <div className="mt-4 space-y-3 text-sm">
                   <div className="flex items-center justify-between text-muted-foreground">
                     <span>{timeAgo(active.created_at)}</span>
-                    <span className="flex items-center gap-1">
-                      <Download className="h-3.5 w-3.5" />
-                      {active.download_count} 次下载
+                    <span className="flex items-center gap-3">
+                      <span className="flex items-center gap-1">
+                        <Heart
+                          className={`h-3.5 w-3.5 ${
+                            active.liked ? "fill-current text-primary" : ""
+                          }`}
+                        />
+                        {active.like_count} 赞
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Download className="h-3.5 w-3.5" />
+                        {active.download_count} 次下载
+                      </span>
                     </span>
                   </div>
                   {active.prompt ? (
@@ -458,6 +534,17 @@ export default function GalleryClient() {
                 </div>
 
                 <div className="mt-auto flex flex-col gap-2 pt-5">
+                  <Button
+                    variant={active.liked ? "secondary" : "default"}
+                    onClick={() => void handleLike(active)}
+                  >
+                    <Heart
+                      className={`h-4 w-4 ${
+                        active.liked ? "fill-current" : ""
+                      }`}
+                    />
+                    {active.liked ? "已点赞" : "点赞"}
+                  </Button>
                   <Button onClick={() => void handleDownload(active)}>
                     <Download className="h-4 w-4" />
                     下载图片

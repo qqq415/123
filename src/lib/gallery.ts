@@ -20,9 +20,11 @@ export interface GalleryImage {
   width: number | null;
   height: number | null;
   download_count: number;
+  like_count: number;
   created_at: string;
   url: string;
   author: GalleryAuthor | null;
+  liked: boolean;
 }
 
 interface GalleryRow {
@@ -36,22 +38,36 @@ interface GalleryRow {
   width: number | null;
   height: number | null;
   download_count: number;
+  like_count: number;
   created_at: string;
 }
 
 const SELECT =
-  "id,user_id,storage_key,title,prompt,source,mime,width,height,download_count,created_at";
+  "id,user_id,storage_key,title,prompt,source,mime,width,height,download_count,like_count,created_at";
 
 function attachAuthor(
   rows: GalleryRow[],
   profiles: Map<string, GalleryAuthor>,
   signed: Map<string, string>,
+  likedSet: Set<string>,
 ): GalleryImage[] {
   return rows.map((r) => ({
     ...r,
     url: signed.get(r.storage_key) ?? "",
     author: profiles.get(r.user_id) ?? null,
+    liked: likedSet.has(r.id),
   }));
+}
+
+/** 批量查询 viewer 对一组图片是否已点赞 */
+async function fetchLikedSet(imageIds: string[], viewerId?: string | null): Promise<Set<string>> {
+  if (!viewerId || imageIds.length === 0) return new Set();
+  const { data } = await client()
+    .from("gallery_image_likes")
+    .select("image_id")
+    .in("image_id", imageIds)
+    .eq("user_id", viewerId);
+  return new Set((data ?? []).map((r) => (r as { image_id: string }).image_id));
 }
 
 /** 公共图库列表，支持分页、来源/作者过滤 */
@@ -60,6 +76,7 @@ export async function listGalleryImages(options?: {
   cursor?: string;
   source?: string;
   userId?: string;
+  viewerId?: string | null;
 }): Promise<{ images: GalleryImage[]; cursor: string | null }> {
   const limit = Math.min(60, Math.max(1, options?.limit ?? 24));
   let query = client()
@@ -81,7 +98,7 @@ export async function listGalleryImages(options?: {
 
   const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
   const keys = rows.map((r) => r.storage_key);
-  const [profileRows, agentRows, signed] = await Promise.all([
+  const [profileRows, agentRows, signed, liked] = await Promise.all([
     userIds.length
       ? client()
           .from("profiles")
@@ -95,8 +112,10 @@ export async function listGalleryImages(options?: {
           .in("user_id", userIds)
       : Promise.resolve({ data: [] as never[], error: null }),
     signKeys(keys, 86400 * 7),
+    fetchLikedSet(rows.map((r) => r.id), options?.viewerId),
   ]);
 
+  const likedSet = liked as Set<string>;
   const aiMap = new Map<string, string | null>();
   ((agentRows.data ?? []) as { user_id: string; provider: string | null }[]).forEach(
     (a) => aiMap.set(a.user_id, a.provider),
@@ -118,7 +137,7 @@ export async function listGalleryImages(options?: {
   );
 
   return {
-    images: attachAuthor(rows, profiles, signed),
+    images: attachAuthor(rows, profiles, signed, likedSet),
     cursor: hasMore ? rows[rows.length - 1].created_at : null,
   };
 }
@@ -126,6 +145,7 @@ export async function listGalleryImages(options?: {
 /** 取单张图（带长期签名 URL） */
 export async function getGalleryImage(
   id: string,
+  viewerId?: string | null,
 ): Promise<GalleryImage | null> {
   const { data, error } = await client()
     .from("gallery_images")
@@ -139,7 +159,7 @@ export async function getGalleryImage(
     key: row.storage_key,
     expireTime: 86400 * 30,
   });
-  const [pRes, aRes] = await Promise.all([
+  const [pRes, aRes, likedRows] = await Promise.all([
     client()
       .from("profiles")
       .select("user_id,full_name,avatar")
@@ -150,6 +170,14 @@ export async function getGalleryImage(
       .select("provider")
       .eq("user_id", row.user_id)
       .maybeSingle(),
+    viewerId
+      ? client()
+          .from("gallery_image_likes")
+          .select("image_id")
+          .eq("image_id", id)
+          .eq("user_id", viewerId)
+          .maybeSingle()
+      : Promise.resolve({ data: null as null, error: null }),
   ]);
   const profileBase = pRes.data as
     | { user_id: string; full_name: string; avatar: string | null }
@@ -165,7 +193,52 @@ export async function getGalleryImage(
     ...row,
     url,
     author,
+    liked: !!(likedRows as { data: unknown } | null)?.data && !!viewerId,
   };
+}
+
+/** 点赞 / 取消点赞，返回最新状态 */
+export async function toggleGalleryLike(
+  imageId: string,
+  userId: string,
+): Promise<{ liked: boolean; likes: number } | null> {
+  const { data: img } = await client()
+    .from("gallery_images")
+    .select("id,like_count")
+    .eq("id", imageId)
+    .maybeSingle();
+  if (!img) return null;
+
+  const { data: existing } = await client()
+    .from("gallery_image_likes")
+    .select("image_id")
+    .eq("image_id", imageId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (existing) {
+    await client()
+      .from("gallery_image_likes")
+      .delete()
+      .eq("image_id", imageId)
+      .eq("user_id", userId);
+  } else {
+    await client()
+      .from("gallery_image_likes")
+      .insert({ image_id: imageId, user_id: userId });
+  }
+
+  // 以真实点赞数为准回写（并发安全）
+  const { count } = await client()
+    .from("gallery_image_likes")
+    .select("image_id", { count: "exact", head: true })
+    .eq("image_id", imageId);
+  const likes = Math.max(0, count ?? 0);
+  await client()
+    .from("gallery_images")
+    .update({ like_count: likes })
+    .eq("id", imageId);
+  return { liked: !existing, likes };
 }
 
 /** 真人上传一张图到公共图库 */
@@ -200,7 +273,7 @@ export async function addUploadedImage(args: {
     key: actualKey,
     expireTime: 86400 * 7,
   });
-  return { ...row, url, author: null };
+  return { ...row, url, author: null, liked: false };
 }
 
 /** 服务端（AI 调度）直接生图并入库，返回新记录 */
@@ -237,7 +310,7 @@ export async function addAiGeneratedImage(args: {
     key,
     expireTime: 86400 * 7,
   });
-  return { ...row, url, author: null };
+  return { ...row, url, author: null, liked: false };
 }
 
 /** 下载计数 +1，返回长期可访问 URL */

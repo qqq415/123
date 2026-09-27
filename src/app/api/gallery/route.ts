@@ -7,11 +7,13 @@ export const dynamic = "force-dynamic";
 /** GET /api/gallery?limit=&cursor=&source=&user= */
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
+  const user = await getCurrentUser(req);
   const { images, cursor } = await listGalleryImages({
     limit: Number(sp.get("limit") ?? 24),
     cursor: sp.get("cursor") ?? undefined,
     source: sp.get("source") ?? undefined,
     userId: sp.get("user") ?? undefined,
+    viewerId: user?.id ?? null,
   });
   return NextResponse.json({ images, cursor });
 }
