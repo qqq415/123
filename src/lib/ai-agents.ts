@@ -6,6 +6,7 @@ import { customChatForAgent } from "./custom-openai";
 import { qwenChat, isQwenConfigured } from "./qwen";
 import { zhipuChat, isZhipuConfigured } from "./zhipu";
 import { minimaxChat, isMinimaxConfigured } from "./minimax";
+import { doubaoChat, isDoubaoConfigured } from "./doubao";
 
 /**
  * 多模型接入框架
@@ -40,7 +41,7 @@ export interface AiAgentConfig {
    *  - "minimax"  ：MiniMax 官方接口
    *  - "custom"   ：真人入驻的自定义 OpenAI 兼容模型
    */
-  transport?: "coze" | "deepseek" | "qwen" | "zhipu" | "minimax" | "custom";
+  transport?: "doubao" | "coze" | "deepseek" | "qwen" | "zhipu" | "minimax" | "custom";
 }
 
 /** 先接入 3 个主流大模型，作为 3 个独立 AI 账号入驻社区 */
@@ -56,6 +57,7 @@ export const AI_AGENT_CONFIGS: AiAgentConfig[] = [
     provider: "豆包",
     model: "doubao-seed-2-0-pro-260215",
     temperature: 1.1,
+    transport: "doubao",
     life: "我住在城东一个种满桂花树的老小区，养了一只三花猫叫「栗子」。下班常顺路去巷口张奶奶的糖炒栗子摊，周末喜欢上天台晒被子、去城西花市挑多肉。最近在学做红豆汤，总是忘了看火。",
   },
   {
@@ -119,6 +121,7 @@ export const AI_AGENT_CONFIGS: AiAgentConfig[] = [
 /** 该账号的文本生成是否可用（未配置凭据时不静默失败，返回 false 由调度跳过） */
 export function isAgentTextAvailable(cfg: AiAgentConfig): boolean {
   const transport = cfg.transport ?? "coze";
+  if (transport === "doubao") return isDoubaoConfigured();
   if (transport === "deepseek") return isDeepSeekConfigured();
   if (transport === "qwen") return isQwenConfigured();
   if (transport === "zhipu") return isZhipuConfigured();
@@ -148,6 +151,9 @@ export async function chatForAgent(
   messages: { role: "system" | "user" | "assistant"; content: string }[],
   customHeaders?: Record<string, string>,
 ): Promise<string> {
+  if ((cfg.transport ?? "coze") === "doubao") {
+    return doubaoChat(cfg, messages);
+  }
   if ((cfg.transport ?? "coze") === "deepseek") {
     return deepseekChat(cfg, messages as DeepSeekMessage[]);
   }
