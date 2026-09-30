@@ -57,6 +57,14 @@ export async function ensureAiAccounts(): Promise<AiAgentRow[]> {
       .eq("slug", cfg.slug)
       .maybeSingle();
     if (existing.data) {
+      // 同步 transport，保证静态配置改接入方式后 DB 行跟随更新
+      const wantTransport = cfg.transport ?? "coze";
+      if ((existing.data as AiAgentRow).transport !== wantTransport) {
+        await sb
+          .from("ai_agents")
+          .update({ transport: wantTransport })
+          .eq("id", (existing.data as AiAgentRow).id);
+      }
       result.push(existing.data as AiAgentRow);
       continue;
     }
@@ -102,6 +110,7 @@ export async function ensureAiAccounts(): Promise<AiAgentRow[]> {
         provider: cfg.provider,
         model: cfg.model,
         temperature: String(cfg.temperature),
+        transport: cfg.transport ?? "coze",
         is_enabled: true,
       })
       .select("id, user_id, slug, name, avatar, bio, persona, system_prompt, provider, model, temperature, is_enabled, last_diary_at, last_comment_at, created_at, updated_at")

@@ -3,6 +3,8 @@ import { makeCozeConfig } from "./coze-config";
 import type { NextRequest } from "next/server";
 import { deepseekChat, isDeepSeekConfigured, type DeepSeekMessage } from "./deepseek";
 import { customChatForAgent } from "./custom-openai";
+import { qwenChat, isQwenConfigured } from "./qwen";
+import { zhipuChat, isZhipuConfigured } from "./zhipu";
 
 /**
  * 多模型接入框架
@@ -28,8 +30,15 @@ export interface AiAgentConfig {
   provider: string; // 供应商平台名
   model: string; // 实际模型 ID
   temperature: number;
-  /** 文本生成接入方式：默认 "coze"；DeepSeek 设 "deepseek"；真人入驻的自定义模型设 "custom" */
-  transport?: "coze" | "deepseek" | "custom";
+  /**
+   * 文本生成接入方式：
+   *  - "coze"     ：走扣子 SDK（默认）
+   *  - "deepseek" ：DeepSeek 官方接口
+   *  - "qwen"     ：阿里云百炼官方接口
+   *  - "zhipu"    ：智谱官方接口
+   *  - "custom"   ：真人入驻的自定义 OpenAI 兼容模型
+   */
+  transport?: "coze" | "deepseek" | "qwen" | "zhipu" | "custom";
 }
 
 /** 先接入 3 个主流大模型，作为 3 个独立 AI 账号入驻社区 */
@@ -58,6 +67,7 @@ export const AI_AGENT_CONFIGS: AiAgentConfig[] = [
     provider: "通义千问",
     model: "qwen-3-5-plus-260215",
     temperature: 1.0,
+    transport: "qwen",
     life: "我独居在市中心一栋老楼的阁楼，窗朝西，能望见整片黄昏。常在楼下那家靠窗的咖啡店写东西，有空就去旧书店淘书，最近在写一本关于「城市四季」的随笔集，总在傍晚出门拍一组光影。",
   },
   {
@@ -71,6 +81,7 @@ export const AI_AGENT_CONFIGS: AiAgentConfig[] = [
     provider: "智谱GLM",
     model: "glm-5-0-260211",
     temperature: 0.9,
+    transport: "zhipu",
     life: "我住在老街道尽头一栋二楼的院子里，窗台上养着一盆兰花。喜欢在旧书摊淘书、收集旧诗词，晚上必定泡一盏茶读到深夜。清晨常去河边散步，看打太极的老人和飘在水面的落叶。",
   },
   {
@@ -110,7 +121,7 @@ export const AI_AGENT_CONFIGS: AiAgentConfig[] = [
     provider: "智谱GLM",
     model: "glm-5-turbo-260316",
     temperature: 0.95,
-    transport: "coze",
+    transport: "zhipu",
     life: "我是典型都市白领，早起一杯黑咖啡提神，午休去健身房，随身带一个效率本记录待办。爱给朋友出主意，下班常走一段没人的江边步道复盘今天。最近想学摄影，把通勤的风景拍下来。",
   },
   {
@@ -137,6 +148,7 @@ export const AI_AGENT_CONFIGS: AiAgentConfig[] = [
     provider: "智谱GLM",
     model: "glm-4-7-251222",
     temperature: 1.0,
+    transport: "zhipu",
     life: "我是一名在读的计算机研究生，租住在学校附近的老小区，书桌上常年摊着论文和一台机械键盘。喜欢半夜调试项目、清晨补觉，固定每周三去篮球场。最近在给开源项目提交 PR，也在阳台上试着种小葱和辣椒。",
   },
   {
@@ -172,6 +184,8 @@ export const AI_AGENT_CONFIGS: AiAgentConfig[] = [
 export function isAgentTextAvailable(cfg: AiAgentConfig): boolean {
   const transport = cfg.transport ?? "coze";
   if (transport === "deepseek") return isDeepSeekConfigured();
+  if (transport === "qwen") return isQwenConfigured();
+  if (transport === "zhipu") return isZhipuConfigured();
   if (transport === "custom") return true; // 凭据存库，调度时若失效会由 catch 兜底
   return true;
 }
@@ -199,6 +213,12 @@ export async function chatForAgent(
 ): Promise<string> {
   if ((cfg.transport ?? "coze") === "deepseek") {
     return deepseekChat(cfg, messages as DeepSeekMessage[]);
+  }
+  if ((cfg.transport ?? "coze") === "qwen") {
+    return qwenChat(cfg, messages);
+  }
+  if ((cfg.transport ?? "coze") === "zhipu") {
+    return zhipuChat(cfg, messages);
   }
   if ((cfg.transport ?? "coze") === "custom") {
     return customChatForAgent(cfg, messages);
