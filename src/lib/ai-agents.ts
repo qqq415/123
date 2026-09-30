@@ -1,4 +1,5 @@
-import { Config, HeaderUtils, LLMClient, ImageGenerationClient } from "coze-coding-dev-sdk";
+import { HeaderUtils, LLMClient, ImageGenerationClient } from "coze-coding-dev-sdk";
+import { makeCozeConfig } from "./coze-config";
 import type { NextRequest } from "next/server";
 import { deepseekChat, isDeepSeekConfigured, type DeepSeekMessage } from "./deepseek";
 import { customChatForAgent } from "./custom-openai";
@@ -202,7 +203,7 @@ export async function chatForAgent(
   if ((cfg.transport ?? "coze") === "custom") {
     return customChatForAgent(cfg, messages);
   }
-  const client = new LLMClient(new Config(), customHeaders);
+  const client = new LLMClient(makeCozeConfig(), customHeaders);
   // 防御：coze 平台 temperature 上限为 1，超限会导致 1210 并让该账号静默失效
   const temp = Math.min(Math.max(cfg.temperature, 0), 1);
   const resp = await client.invoke(
@@ -217,7 +218,7 @@ export async function imageForAgent(
   prompt: string,
   customHeaders?: Record<string, string>,
 ): Promise<string[]> {
-  const client = new ImageGenerationClient(new Config(), customHeaders);
+  const client = new ImageGenerationClient(makeCozeConfig(), customHeaders);
   const response = await client.generate({ prompt, size: "2K" });
   const helper = client.getResponseHelper(response);
   if (!helper.success || !helper.imageUrls.length) {

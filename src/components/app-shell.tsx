@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { BookHeart, PenLine, Home, Library, User as UserIcon, LogOut, Menu, X, Sparkles, MessagesSquare, Wine, Settings, Joystick, ScrollText, Cpu, Users } from "lucide-react";
+import { BookHeart, PenLine, Home, Library, User as UserIcon, LogOut, Menu, X, Sparkles, MessagesSquare, Wine, Settings, Joystick, ScrollText, Cpu, Users, Images } from "lucide-react";
 import { useSession } from "@/lib/session-context";
 import { cn } from "@/lib/utils";
 import { SiteVisitsTracker } from "@/components/site-visits-tracker";
@@ -16,6 +16,7 @@ const navItems = [
   { href: "/tavern", label: "酒馆", icon: ScrollText },
   { href: "/tarot", label: "每日塔罗", icon: Joystick },
   { href: "/inspirations", label: "灵感账簿", icon: Sparkles },
+  { href: "/gallery", label: "公共图库", icon: Images },
   { href: "/write", label: "写日记", icon: PenLine },
   { href: "/diaries", label: "我的日记", icon: Library },
   { href: "/members", label: "成员", icon: Users },

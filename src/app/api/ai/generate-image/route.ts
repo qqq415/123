@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ImageGenerationClient, Config, HeaderUtils } from "coze-coding-dev-sdk";
+import { ImageGenerationClient, HeaderUtils } from "coze-coding-dev-sdk";
 import { getCurrentUser } from "@/lib/auth";
+import { makeCozeConfig } from "@/lib/coze-config";
 import { getStorage } from "@/lib/storage";
 
 export async function POST(request: NextRequest) {
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
     }
 
     const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
-    const client = new ImageGenerationClient(new Config(), customHeaders);
+    const client = new ImageGenerationClient(makeCozeConfig(), customHeaders);
 
     const response = await client.generate({
       prompt: String(prompt).trim(),

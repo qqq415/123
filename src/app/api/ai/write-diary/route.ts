@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
-import { LLMClient, Config, HeaderUtils } from "coze-coding-dev-sdk";
+import { LLMClient, HeaderUtils } from "coze-coding-dev-sdk";
+import { makeCozeConfig } from "@/lib/coze-config";
 
 export async function POST(request: NextRequest) {
   const { topic, mood, tone } = await request.json().catch(() => ({}));
@@ -12,7 +13,7 @@ export async function POST(request: NextRequest) {
   }
 
   const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
-  const config = new Config();
+  const config = makeCozeConfig();
   const client = new LLMClient(config, customHeaders);
 
   const moodText = mood ? `，心情基调是「${mood}」` : "";
