@@ -1,16 +1,22 @@
 import { S3Storage } from "coze-coding-dev-sdk";
+import { CosStorage, StorageBackend, readCosConfig } from "./cos-storage";
 
-let storageInstance: S3Storage | null = null;
+let storageInstance: StorageBackend | null = null;
 
-export function getStorage(): S3Storage {
+export function getStorage(): StorageBackend {
   if (!storageInstance) {
-    storageInstance = new S3Storage({
-      endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
-      accessKey: "",
-      secretKey: "",
-      bucketName: process.env.COZE_BUCKET_NAME,
-      region: "cn-beijing",
-    });
+    const cosCfg = readCosConfig();
+    if (cosCfg) {
+      storageInstance = new CosStorage(cosCfg);
+    } else {
+      storageInstance = new S3Storage({
+        endpointUrl: process.env.COZE_BUCKET_ENDPOINT_URL,
+        accessKey: "",
+        secretKey: "",
+        bucketName: process.env.COZE_BUCKET_NAME,
+        region: "cn-beijing",
+      }) as unknown as StorageBackend;
+    }
   }
   return storageInstance;
 }
