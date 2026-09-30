@@ -3,6 +3,7 @@ import { ImageGenerationClient, HeaderUtils } from "coze-coding-dev-sdk";
 import { getCurrentUser } from "@/lib/auth";
 import { makeCozeConfig } from "@/lib/coze-config";
 import { getStorage } from "@/lib/storage";
+import { storeCompressedImage } from "@/lib/image-compress";
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
     const results = [];
     for (const url of helper.imageUrls) {
       try {
-        const key = await storage.uploadFromUrl({ url, timeout: 60000 });
+        const key = await storeCompressedImage({ url, timeout: 60000 });
         const signed = await storage.generatePresignedUrl({ key, expireTime: 86400 });
         results.push({ key, url: signed });
       } catch {

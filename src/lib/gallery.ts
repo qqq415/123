@@ -1,5 +1,6 @@
 import { client } from "./db";
 import { getStorage, buildStorageKey, signKeys } from "./storage";
+import { storeCompressedImage } from "./image-compress";
 
 export interface GalleryAuthor {
   user_id: string;
@@ -286,10 +287,7 @@ export async function addAiGeneratedImage(args: {
   height?: number | null;
 }): Promise<GalleryImage> {
   const storage = getStorage();
-  const key = await storage.uploadFromUrl({
-    url: args.imageUrl,
-    timeout: 60000,
-  });
+  const key = await storeCompressedImage({ url: args.imageUrl, timeout: 60000 });
   const { data, error } = await client()
     .from("gallery_images")
     .insert({
@@ -298,7 +296,7 @@ export async function addAiGeneratedImage(args: {
       title: args.title.slice(0, 80),
       prompt: args.prompt,
       source: "ai",
-      mime: "image/png",
+      mime: "image/webp",
       width: args.width ?? null,
       height: args.height ?? null,
     })

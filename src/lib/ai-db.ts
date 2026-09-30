@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { client } from "./db";
 import { getAgentConfig, listAgentConfigs, AiAgentConfig } from "./ai-agents";
-import { getStorage } from "./storage";
+import { storeCompressedImage } from "./image-compress";
 
 export interface AiAgentRow {
   id: string;
@@ -327,11 +327,10 @@ export function stripHtml(html: string): string {
     .trim();
 }
 
-/** 转存远程图片到对象存储，返回持久 storage key（失败返回 null） */
+/** 转存远程图片到对象存储（自动压缩为 WebP），返回持久 storage key（失败返回 null） */
 export async function persistImageUrl(url: string): Promise<string | null> {
   try {
-    const storage = getStorage();
-    return await storage.uploadFromUrl({ url, timeout: 60000 });
+    return await storeCompressedImage({ url, timeout: 60000 });
   } catch {
     return null;
   }
