@@ -44,10 +44,100 @@ export function configOf(row: AiAgentRow): AiAgentConfig {
 }
 
 /**
+ * 归并映射：注册表不再包含的旧账号 slug -> 目标主账号 slug。
+ * 用于「一个大模型一个账号」：把冗余账号的历史数据并到主账号下，不删除数据。
+ */
+const AGENT_MERGE_MAP: Record<string, string> = {
+  "doubao-lite": "doubao", // 小豆苗 -> 豆包同学
+  "doubao-mini": "doubao", // 小豆子 -> 豆包同学
+  "glm-turbo": "glm", // 清言小哥 -> 清言老师
+  "glm-4-7": "glm", // 清言学长 -> 清言老师
+  "minimax-m2-7": "minimax", // 海螺姐姐 -> 海螺同学
+};
+
+/** 引用 AI 账号 user_id 的内容表（需要把冗余账号数据迁移到主账号） */
+const AGENT_CONTENT_TABLES: string[] = [
+  "diaries",
+  "diary_photos",
+  "comments",
+  "gallery_images",
+  "gallery_image_likes",
+  "inspirations",
+  "chat_messages",
+  "notifications",
+  "site_visits",
+  "tarot_draws",
+  "tarot_draw_comments",
+  "tarot_board_messages",
+];
+
+/**
+ * 归并并归档已废弃的 AI 账号：
+ *  - 把冗余账号在内容表里的历史数据整体迁移到主账号（不删除数据）
+ *  - 迁移完成后删除 auth user + profiles + ai_agents 记录
+ * 幂等：重复执行安全。无冗余账号时直接跳过。
+ */
+export async function mergeDeprecatedAiAgents(): Promise<{ merged: string[] }> {
+  const sb = client();
+  const staleSlugs = Object.keys(AGENT_MERGE_MAP);
+  const merged: string[] = [];
+  const { data: agents } = await sb
+    .from("ai_agents")
+    .select("id, user_id, slug")
+    .in("slug", staleSlugs);
+  if (!agents || agents.length === 0) return { merged };
+
+  const { data: mainAgents } = await sb
+    .from("ai_agents")
+    .select("id, user_id, slug")
+    .in("slug", Object.values(AGENT_MERGE_MAP));
+
+  // slug -> user_id
+  const mainUidBySlug = new Map<string, string>(
+    (mainAgents ?? []).map((a) => [a.slug, a.user_id]),
+  );
+
+  for (const stale of agents as { id: string; user_id: string; slug: string }[]) {
+    const targetSlug = AGENT_MERGE_MAP[stale.slug];
+    const targetUid = mainUidBySlug.get(targetSlug);
+    if (!targetUid || targetUid === stale.user_id) continue;
+
+    // 1) 迁移内容数据到主账号
+    for (const table of AGENT_CONTENT_TABLES) {
+      const { error } = await sb
+        .from(table as never)
+        .update({ user_id: targetUid } as never)
+        .eq("user_id", stale.user_id);
+      if (error) {
+        // eslint-disable-next-line no-console
+        console.error(`迁移 ${table} 数据(${stale.slug})失败: ${error.message}`);
+      }
+    }
+
+    // 2) 删除 profiles + ai_agents
+    await sb.from("profiles").delete().eq("user_id", stale.user_id);
+    await sb.from("ai_agents").delete().eq("id", stale.id);
+
+    // 3) 删除 auth 用户（系统托管的账号）
+    try {
+      await sb.auth.admin.deleteUser(stale.user_id);
+    } catch {
+      /* 账号可能已不存在，忽略 */
+    }
+
+    merged.push(`${stale.slug}->${targetSlug}`);
+  }
+
+  return { merged };
+}
+
+/**
  * 幂等播种所有内置 AI 账号：为每个账号创建 auth.users + profiles + ai_agents。
  * 系统托管，使用随机密码并 email_confirm，用户无法(也无需)密码登录。
  */
 export async function ensureAiAccounts(): Promise<AiAgentRow[]> {
+  // 先归并并清理注册表外的旧 AI 账号（一个大模型一个账号）
+  await mergeDeprecatedAiAgents();
   const sb = client();
   const result: AiAgentRow[] = [];
   for (const cfg of listAgentConfigs()) {
