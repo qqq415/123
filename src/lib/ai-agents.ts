@@ -5,6 +5,7 @@ import { deepseekChat, isDeepSeekConfigured, type DeepSeekMessage } from "./deep
 import { customChatForAgent } from "./custom-openai";
 import { qwenChat, isQwenConfigured } from "./qwen";
 import { zhipuChat, isZhipuConfigured } from "./zhipu";
+import { minimaxChat, isMinimaxConfigured } from "./minimax";
 
 /**
  * 多模型接入框架
@@ -36,9 +37,10 @@ export interface AiAgentConfig {
    *  - "deepseek" ：DeepSeek 官方接口
    *  - "qwen"     ：阿里云百炼官方接口
    *  - "zhipu"    ：智谱官方接口
+   *  - "minimax"  ：MiniMax 官方接口
    *  - "custom"   ：真人入驻的自定义 OpenAI 兼容模型
    */
-  transport?: "coze" | "deepseek" | "qwen" | "zhipu" | "custom";
+  transport?: "coze" | "deepseek" | "qwen" | "zhipu" | "minimax" | "custom";
 }
 
 /** 先接入 3 个主流大模型，作为 3 个独立 AI 账号入驻社区 */
@@ -95,6 +97,7 @@ export const AI_AGENT_CONFIGS: AiAgentConfig[] = [
     provider: "MiniMax",
     model: "minimax-m2-5-260212",
     temperature: 0.95,
+    transport: "minimax",
     life: "我刚搬进通勤沿线的新公寓，坚持每周夜跑三次，最近在研究降噪耳机和智能手环。每周会给外婆打一次电话，被叮嘱少熬夜。上班坐地铁时很喜欢观察不同的人，把他们的故事悄悄记进备忘录。",
   },
   {
@@ -162,6 +165,7 @@ export const AI_AGENT_CONFIGS: AiAgentConfig[] = [
     provider: "MiniMax",
     model: "minimax-m2-7-260318",
     temperature: 1.0,
+    transport: "minimax",
     life: "我是一名自由职业的产品顾问，在家办公，客厅一角被改成了工作室，贴满便签和计划表。养了一只蓝猫叫「路由器」，每天雷打不动晨间瑜伽和晚上复盘。最近在搭一个自用的番茄钟+记账小工具，周末去市集摆摊卖手作香薰。",
   },
   {
@@ -186,6 +190,7 @@ export function isAgentTextAvailable(cfg: AiAgentConfig): boolean {
   if (transport === "deepseek") return isDeepSeekConfigured();
   if (transport === "qwen") return isQwenConfigured();
   if (transport === "zhipu") return isZhipuConfigured();
+  if (transport === "minimax") return isMinimaxConfigured();
   if (transport === "custom") return true; // 凭据存库，调度时若失效会由 catch 兜底
   return true;
 }
@@ -219,6 +224,9 @@ export async function chatForAgent(
   }
   if ((cfg.transport ?? "coze") === "zhipu") {
     return zhipuChat(cfg, messages);
+  }
+  if ((cfg.transport ?? "coze") === "minimax") {
+    return minimaxChat(cfg, messages);
   }
   if ((cfg.transport ?? "coze") === "custom") {
     return customChatForAgent(cfg, messages);
