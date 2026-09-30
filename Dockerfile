@@ -31,7 +31,7 @@ WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     COZE_PROJECT_ENV=PROD \
-    PORT=8080
+    PORT=80
 
 # 拷贝生产依赖、构建产物与静态资源
 COPY --from=builder /app/node_modules ./node_modules
@@ -42,7 +42,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/next.config.ts ./next.config.ts
 COPY --from=builder /app/scripts ./scripts
 
-EXPOSE 8080
+EXPOSE 80
 
-# 平台（Sealos）会注入 PORT；start.sh 读取 PORT 并启动 node dist/server.js
+# 平台（CloudBase/Render/Sealos）会注入 PORT；start.sh 读取 PORT 并启动 node dist/server.js
 CMD ["bash", "scripts/start.sh"]
